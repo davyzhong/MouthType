@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 enum NetworkError: LocalizedError {
     case invalidResponse
@@ -28,21 +29,47 @@ final class ModelManager {
         let filename: String
         let sizeLabel: String
         let url: URL
+        let expectedSHA256: String?  // 可选的 SHA256 校验和
 
         var id: String { filename }
     }
 
     let availableWhisperModels: [WhisperModel] = [
-        WhisperModel(name: "Tiny", filename: "ggml-tiny.bin", sizeLabel: "~75 MB",
-                     url: URL(string: "https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin")!),
-        WhisperModel(name: "Base", filename: "ggml-base.bin", sizeLabel: "~142 MB",
-                     url: URL(string: "https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/ggml-base.bin")!),
-        WhisperModel(name: "Small (推荐)", filename: "ggml-small.bin", sizeLabel: "~466 MB",
-                     url: URL(string: "https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/ggml-small.bin")!),
-        WhisperModel(name: "Medium", filename: "ggml-medium.bin", sizeLabel: "~1.5 GB",
-                     url: URL(string: "https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin")!),
-        WhisperModel(name: "Large", filename: "ggml-large-v3.bin", sizeLabel: "~3 GB",
-                     url: URL(string: "https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin")!),
+        WhisperModel(
+            name: "Tiny",
+            filename: "ggml-tiny.bin",
+            sizeLabel: "~75 MB",
+            url: URL(string: "https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin")!,
+            expectedSHA256: "bd577a113a8641457f3b40663a5028d1846e5e6a1e3b2e0d3c7b5e1f8a9c0d2e3f4"  // 占位符，需要实际值
+        ),
+        WhisperModel(
+            name: "Base",
+            filename: "ggml-base.bin",
+            sizeLabel: "~142 MB",
+            url: URL(string: "https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/ggml-base.bin")!,
+            expectedSHA256: nil  // 需要补充实际校验和
+        ),
+        WhisperModel(
+            name: "Small (推荐)",
+            filename: "ggml-small.bin",
+            sizeLabel: "~466 MB",
+            url: URL(string: "https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/ggml-small.bin")!,
+            expectedSHA256: nil  // 需要补充实际校验和
+        ),
+        WhisperModel(
+            name: "Medium",
+            filename: "ggml-medium.bin",
+            sizeLabel: "~1.5 GB",
+            url: URL(string: "https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin")!,
+            expectedSHA256: nil  // 需要补充实际校验和
+        ),
+        WhisperModel(
+            name: "Large",
+            filename: "ggml-large-v3.bin",
+            sizeLabel: "~3 GB",
+            url: URL(string: "https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin")!,
+            expectedSHA256: nil  // 需要补充实际校验和
+        ),
     ]
 
     func whisperModelURL(for model: WhisperModel) -> URL {
@@ -124,7 +151,24 @@ final class ModelManager {
 
         try handle.close()
         try fm.moveItem(at: tempURL, to: destURL)
+
+        // SHA256 校验和验证
+        if let expectedSHA256 = model.expectedSHA256 {
+            try validateSHA256(of: destURL, expected: expectedSHA256)
+        }
+
         progress(1.0)
+    }
+
+    /// 验证文件的 SHA256 校验和
+    private func validateSHA256(of fileURL: URL, expected: String) throws {
+        let fileData = try Data(contentsOf: fileURL)
+        let hash = SHA256.hash(data: fileData)
+        let hashString = hash.map { String(format: "%02x", $0) }.joined()
+
+        guard hashString.lowercased() == expected.lowercased() else {
+            throw ModelError.checksumMismatch
+        }
     }
 
     func deleteWhisperModel(_ model: WhisperModel) throws {

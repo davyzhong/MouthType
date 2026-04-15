@@ -13,6 +13,11 @@ import Foundation
     private var audioFormat: AudioFormat = .pcm16kMono()
     private let oneShotModel = "qwen3-asr-flash"
 
+    // 重连配置
+    private let maxReconnectAttempts = 3
+    private let reconnectDelay: TimeInterval = 1.0
+    private let reconnectBackoffMultiplier: Double = 2.0
+
     struct AudioFormat {
         let sampleRate: Int
         let channels: Int
@@ -134,7 +139,48 @@ import Foundation
             return
         }
 
-        var request = URLRequest(url: wsURL)
+        // 重连循环
+        var reconnectAttempt = 0
+        var delay = reconnectDelay
+
+        while reconnectAttempt <= maxReconnectAttempts, generation == streamGeneration, isStreaming {
+            do {
+                try await connectWebSocket(
+                    url: wsURL,
+                    apiKey: apiKey,
+                    continuation: continuation,
+                    hotwords: hotwords,
+                    generation: generation
+                )
+                // 如果连接正常退出（stopRequested），则退出重连循环
+                if stopRequested { break }
+            } catch {
+                reconnectAttempt += 1
+                if reconnectAttempt > maxReconnectAttempts {
+                    await MainActor.run {
+                        continuation.finish(throwing: BailianError.connectionFailed)
+                    }
+                    clearStreamingState(generation: generation)
+                    return
+                }
+                // 指数退避延迟
+                try? await Task.sleep(for: .milliseconds(Int(delay * 1000)))
+                delay *= reconnectBackoffMultiplier
+            }
+        }
+
+        clearStreamingState(generation: generation)
+    }
+
+    /// 建立并运行单个 WebSocket 连接
+    private func connectWebSocket(
+        url: URL,
+        apiKey: String,
+        continuation: AsyncThrowingStream<ASRSegment, Error>.Continuation,
+        hotwords: [String],
+        generation: UInt64
+    ) async throws {
+        var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -145,14 +191,14 @@ import Foundation
         guard generation == streamGeneration, isStreaming else {
             task.cancel(with: .goingAway, reason: nil)
             session.invalidateAndCancel()
-            continuation.finish()
-            return
+            throw BailianError.connectionFailed
         }
 
         self.webSocketTask = task
         self.session = session
         task.resume()
 
+        // 发送初始化消息
         let startMsg: [String: Any] = [
             "payload": [
                 "format": "pcm",
@@ -167,66 +213,66 @@ import Foundation
             try? await task.send(.data(data))
         }
 
-        do {
-            while generation == streamGeneration, isStreaming {
-                // When stop is requested, drain remaining segments with a timeout
-                if stopRequested {
-                    // Give the server up to 2s to send final segments
-                    let drainTask = Task {
-                        while generation == streamGeneration {
-                            let message = try await task.receive()
-                            switch message {
-                            case .string(let text):
-                                if let segment = parseSegment(from: text) {
-                                    continuation.yield(segment)
-                                    if segment.isFinal { return }
-                                }
-                            case .data(let data):
-                                if let text = String(data: data, encoding: .utf8),
-                                   let segment = parseSegment(from: text) {
-                                    continuation.yield(segment)
-                                    if segment.isFinal { return }
-                                }
-                            @unknown default:
-                                return
-                            }
-                        }
-                    }
-                    // Timeout after 2 seconds
-                    let timeout = Task {
-                        try? await Task.sleep(nanoseconds: 2_000_000_000)
-                        drainTask.cancel()
-                    }
-                    try? await drainTask.value
-                    timeout.cancel()
-                    break
+        // 接收消息循环
+        while generation == streamGeneration, isStreaming, !stopRequested {
+            let message = try await task.receive()
+            switch message {
+            case .string(let text):
+                if let segment = parseSegment(from: text) {
+                    continuation.yield(segment)
                 }
+            case .data(let data):
+                if let text = String(data: data, encoding: .utf8),
+                   let segment = parseSegment(from: text) {
+                    continuation.yield(segment)
+                }
+            @unknown default:
+                break
+            }
+        }
 
+        // 如果 stopRequested，等待最终片段
+        if stopRequested {
+            try? await drainFinalSegments(task: task, continuation: continuation, generation: generation)
+        }
+
+        continuation.finish()
+    }
+
+    /// 等待最终片段（stopRequested 后调用）
+    private func drainFinalSegments(
+        task: URLSessionWebSocketTask,
+        continuation: AsyncThrowingStream<ASRSegment, Error>.Continuation,
+        generation: UInt64
+    ) async throws {
+        // Give the server up to 2s to send final segments
+        let drainTask = Task {
+            while generation == streamGeneration {
                 let message = try await task.receive()
                 switch message {
                 case .string(let text):
                     if let segment = parseSegment(from: text) {
                         continuation.yield(segment)
+                        if segment.isFinal { return }
                     }
                 case .data(let data):
                     if let text = String(data: data, encoding: .utf8),
                        let segment = parseSegment(from: text) {
                         continuation.yield(segment)
+                        if segment.isFinal { return }
                     }
                 @unknown default:
-                    break
+                    return
                 }
             }
-            continuation.finish()
-        } catch {
-            if stopRequested || generation != streamGeneration {
-                continuation.finish()
-            } else if isStreaming {
-                continuation.finish(throwing: error)
-            }
         }
-
-        clearStreamingState(generation: generation)
+        // Timeout after 2 seconds
+        let timeout = Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            drainTask.cancel()
+        }
+        try? await drainTask.value
+        timeout.cancel()
     }
 
     private func clearStreamingState(generation: UInt64? = nil) {

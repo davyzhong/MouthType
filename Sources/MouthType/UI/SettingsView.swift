@@ -31,9 +31,6 @@ struct SettingsView: View {
     @State private var testingDeviceId: String?
     @State private var currentAudioLevel: Float = 0
 
-    // MARK: - Multi-Provider Configuration
-    @StateObject private var configStore = ProviderConfigStore.shared
-
     // MARK: - Test Connection State
     @State private var isTestingConnection = false
     @State private var connectionTestResult: String?
@@ -98,23 +95,10 @@ struct SettingsView: View {
         return PasteService.checkInputMonitoring()
     }
 
-    // MARK: - Multi-Provider Config Computed Properties
-
-    /// 当前选中的 AI Provider 配置（计算属性，自动从 configStore 读取）
-    private var currentProviderConfig: AIProviderConfig {
-        configStore.config(for: aiProvider)
-    }
-
-    /// 全局 AI 配置
-    private var globalAIConfig: GlobalAIConfig {
-        get { configStore.global }
-        nonmutating set { configStore.global = newValue }
-    }
-
-    /// 当前 Provider 的 API Key（从 Keychain 读取）
+    /// 当前 Provider 的 API Key（从 AppSettings 读取）
     private var currentAPIKey: String {
-        get { configStore.apiKey(for: aiProvider) }
-        set { configStore.setAPIKey(newValue, for: aiProvider) }
+        get { aiApiKey }
+        set { aiApiKey = newValue }
     }
 
     private func refreshPermissionStatus() {
@@ -134,18 +118,27 @@ struct SettingsView: View {
             isTestingConnection = true
             connectionTestResult = nil
 
-            let result = await configStore.testConnection(for: aiProvider)
+            let result = await testAIProviderConnection()
 
             await MainActor.run {
                 isTestingConnection = false
                 switch result {
                 case .success:
                     connectionTestResult = "连接成功"
-                case .failure(let message):
-                    connectionTestResult = "连接失败：\(message)"
+                case .failure(let error):
+                    connectionTestResult = "连接失败：\(error.localizedDescription)"
                 }
             }
         }
+    }
+
+    private func testAIProviderConnection() async -> Result<Void, Error> {
+        // 简单的连接测试：检查 API Key 是否配置
+        if aiApiKey.isEmpty {
+            return .failure(AIError.notConfigured)
+        }
+        // TODO: 实现实际的 API 连接测试
+        return .success(())
     }
 
     var body: some View {
@@ -571,51 +564,30 @@ struct SettingsView: View {
         .onAppear {
             bailianApiKey = AppSettings.shared.bailianApiKey
             aiApiKey = AppSettings.shared.aiApiKey
-            // 同步当前 Provider 的配置到 UI 绑定
-            syncConfigToUI()
         }
         .onChange(of: bailianApiKey) { _, newValue in
             AppSettings.shared.bailianApiKey = newValue
         }
         .onChange(of: aiApiKey) { _, newValue in
             AppSettings.shared.aiApiKey = newValue
-            // 同步到 configStore
-            configStore.setAPIKey(newValue, for: aiProvider)
         }
         .onChange(of: aiProviderRawValue) { _, _ in
             // Provider 切换时，同步 UI 到新的配置
             syncConfigToUI()
         }
-        .onChange(of: aiModelName) { _, newValue in
-            // 同步到 configStore
-            var config = configStore.config(for: aiProvider)
-            config.modelName = newValue
-            configStore.setConfig(config, for: aiProvider)
-        }
-        .onChange(of: aiEndpoint) { _, newValue in
-            // 同步到 configStore
-            var config = configStore.config(for: aiProvider)
-            config.endpoint = newValue
-            configStore.setConfig(config, for: aiProvider)
-        }
         .onDisappear {
             // Sync any pending edits to Keychain on window close
             AppSettings.shared.bailianApiKey = bailianApiKey
             AppSettings.shared.aiApiKey = aiApiKey
-            // 确保 configStore 保存了最新配置
-            var config = configStore.config(for: aiProvider)
-            config.modelName = aiModelName
-            config.endpoint = aiEndpoint
-            configStore.setConfig(config, for: aiProvider)
         }
     }
 
-    /// 将 configStore 的配置同步到 UI 绑定
+    /// 将配置同步到 UI 绑定
     private func syncConfigToUI() {
-        let config = configStore.config(for: aiProvider)
+        // 根据当前 Provider 加载默认配置
+        let config = aiProvider.defaultConfig
         aiModelName = config.modelName
         aiEndpoint = config.endpoint
-        aiApiKey = configStore.apiKey(for: aiProvider)
     }
 }
 

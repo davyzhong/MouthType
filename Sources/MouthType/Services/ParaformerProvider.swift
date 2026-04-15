@@ -75,18 +75,27 @@ final class ParaformerProvider: ASRProvider {
             "--threads", "1",
         ]
 
-        // Paraformer 支持热词 - 热词来自应用设置，已验证过
+        // Paraformer 支持热词 - 过滤危险字符防止命令行注入
         if !hotwords.isEmpty {
-            let prompt = hotwords.joined(separator: " ")
-            arguments += ["--hotwords", prompt]
-            paraformerLog.info("热词：\(prompt)")
+            // 过滤危险字符： " ' $ ` ; | & ( ) < > \ 等
+            let dangerousCharacters = CharacterSet(charactersIn: "\"'$`;|&()<>\\!#*?[]{}")
+            let filteredHotwords = hotwords.map { word in
+                word.components(separatedBy: dangerousCharacters).joined(separator: "")
+            }
+            .filter { !$0.isEmpty }
+
+            if !filteredHotwords.isEmpty {
+                let prompt = filteredHotwords.joined(separator: " ")
+                arguments += ["--hotwords", prompt]
+                paraformerLog.info("热词：\(prompt)")
+            }
         }
 
         let result = try await runProcess(url: binaryURL, arguments: arguments)
 
         paraformerLog.info("退出码：\(result.exitCode)")
         if !result.stdout.isEmpty {
-            paraformerLog.info(" stdout: \(result.stdout)")
+            paraformerLog.info(" stdout: \(LogRedaction.redactTranscript(result.stdout))")
         }
         if !result.stderr.isEmpty {
             paraformerLog.info(" stderr: \(result.stderr)")

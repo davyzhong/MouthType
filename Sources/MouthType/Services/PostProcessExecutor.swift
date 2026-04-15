@@ -7,6 +7,8 @@ private let strategyLog = Logger(subsystem: "com.mouthtype", category: "PostProc
 /// 策略后处理执行器
 ///
 /// 根据配置的策略和场景执行 AI 后处理
+///
+/// Thread safety: Designed for async/await usage with MainActor
 final class PostProcessExecutor: @unchecked Sendable {
     // MARK: - Properties
 

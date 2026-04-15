@@ -27,11 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         uiTestConfiguration.applyLaunchState(to: appState)
 
-        // 初始化配置文件（加载 LLM Provider 配置）
-        Task {
-            await ProviderConfigStore.shared.initializeFromConfig()
-        }
-
         // Build app menu bar
         buildMenuBar()
 

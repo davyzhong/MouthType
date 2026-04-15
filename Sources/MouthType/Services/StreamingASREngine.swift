@@ -9,6 +9,8 @@ private let streamingLog = Logger(subsystem: "com.mouthtype", category: "Streami
 /// - 滑动窗口：每 100ms 处理一个窗口（1600 样本 @ 16kHz）
 /// - 重叠拼接：相邻窗口重叠 50%，避免边界信息丢失
 /// - 部分结果：每个窗口立即返回转写，不等待完整语句
+///
+/// Thread safety: Designed for async/await usage with proper isolation
 final class StreamingASREngine: @unchecked Sendable {
     // MARK: - Configuration
 

@@ -9,6 +9,8 @@ private let stabilizerLog = Logger(subsystem: "com.mouthtype", category: "Transc
 /// - **冻结区域** - 已确认的最终文本，不再修改
 /// - **半稳定区域** - 较早期的部分结果，相对稳定但可能微调
 /// - **活跃区域** - 最新的转写结果，可能频繁变化
+///
+/// Thread safety: Designed for MainActor usage (called from UI/async contexts)
 final class TranscriptStabilizer: @unchecked Sendable {
     // MARK: - Configuration
 

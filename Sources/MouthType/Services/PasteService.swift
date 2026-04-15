@@ -5,6 +5,8 @@ import Foundation
 /// PasteService - 粘贴服务
 ///
 /// 提供文本粘贴功能，支持智能插入计划
+///
+/// Thread safety: Designed for async/await usage with MainActor
 final class PasteService: @unchecked Sendable {
     enum PasteError: LocalizedError {
         case appleScriptFailed(String)

@@ -27,7 +27,7 @@ struct LogRedaction {
             result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "[EMAIL\(redactMarker)]")
         }
 
-        // 脱敏电话号码
+        // 脱敏电话号码（支持国际格式）
         let phonePattern = #"\b(?:\+?(\d{1,3}))?[-. (]*(\d{3})[-. )]*(\d{3})[-. ]*(\d{4})\b"#
         if let regex = try? NSRegularExpression(pattern: phonePattern) {
             let range = NSRange(result.startIndex..., in: result)
@@ -39,6 +39,41 @@ struct LogRedaction {
         if let regex = try? NSRegularExpression(pattern: cardPattern) {
             let range = NSRange(result.startIndex..., in: result)
             result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "[CARD\(redactMarker)]")
+        }
+
+        // 脱敏身份证号（中国）
+        let chineseIDPattern = #"\b\d{17}[\dXx]\b"#
+        if let regex = try? NSRegularExpression(pattern: chineseIDPattern) {
+            let range = NSRange(result.startIndex..., in: result)
+            result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "[ID\(redactMarker)]")
+        }
+
+        // 脱敏银行卡号（16-19 位数字）
+        let bankCardPattern = #"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4,7}\b"#
+        if let regex = try? NSRegularExpression(pattern: bankCardPattern) {
+            let range = NSRange(result.startIndex..., in: result)
+            result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "[BANK\(redactMarker)]")
+        }
+
+        // 脱敏手机号（中国）
+        let chineseMobilePattern = #"\b(?:\+86|86)?1[3-9]\d{9}\b"#
+        if let regex = try? NSRegularExpression(pattern: chineseMobilePattern) {
+            let range = NSRange(result.startIndex..., in: result)
+            result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "[MOBILE\(redactMarker)]")
+        }
+
+        // 脱敏 URL（保留域名，移除查询参数）
+        let urlPattern = #"https?://[a-zA-Z0-9.-]+(?:/[^\s"'&?#]*)?(?:\?[^\s"'&]*)?"#
+        if let regex = try? NSRegularExpression(pattern: urlPattern) {
+            let range = NSRange(result.startIndex..., in: result)
+            result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "[URL\(redactMarker)]")
+        }
+
+        // 脱敏微信 ID（wxid_ 开头或 6-20 位字母数字）
+        let wechatPattern = #"\b(wxid_[a-zA-Z0-9]+|[a-zA-Z][a-zA-Z0-9_]{5,19})\b"#
+        if let regex = try? NSRegularExpression(pattern: wechatPattern) {
+            let range = NSRange(result.startIndex..., in: result)
+            result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "[WECHAT\(redactMarker)]")
         }
 
         return result

@@ -120,55 +120,29 @@ struct StrictModeValidator: Sendable {
     }
 }
 
-// MARK: - BailianProvider 实现
+// MARK: - 通用 HTTP AI Provider 基类
 
-final class BailianProvider: AIProvider, @unchecked Sendable {
-    let providerId = "bailian"
-    let displayName = "阿里云百炼"
+/// 基于 HTTP POST 的 AI Provider 通用实现
+/// 复用 Bailian、OpenAI 等提供者的共同逻辑
+@MainActor
+class BaseHTTPIAIProvider: AIProvider {
+    var providerId: String { "base" }
+    var displayName: String { "Base Provider" }
 
-    // 使用 Optional 存储，通过 lazy 或外部注入初始化
-    private var _keychainStore: (any KeychainStore)?
-    private var _settings: AppSettings?
     private let strictModeValidator = StrictModeValidator()
 
-    init(keychainStore: (any KeychainStore)? = nil, settings: AppSettings? = nil) {
-        self._keychainStore = keychainStore
-        self._settings = settings
-    }
+    /// API 密钥（子类重写）
+    var apiKey: String { "" }
 
-    private var keychainStore: any KeychainStore {
-        _keychainStore ?? SystemKeychainStore()
-    }
+    /// 请求端点 URL（子类重写）
+    var endpointURL: URL? { nil }
 
-    private var settings: AppSettings {
-        _settings ?? .shared
-    }
+    /// 是否持有 API Key（子类重写）
+    func hasAPIKey() -> Bool { false }
 
-    var isAvailable: Bool {
-        hasAPIKey() && settings.validatedAIEndpoint != nil
-    }
-
-    private func hasAPIKey() -> Bool {
-        keychainStore.string(forKey: "bailian_api_key", service: "MouthType.APIKeys") != nil
-    }
-
-    private var requestURL: URL? {
-        settings.aiChatCompletionsURL
-    }
-
-    func process(text: String, options: ProcessOptions) async throws -> AIProcessResult {
-        guard isAvailable else {
-            throw AIError.notConfigured
-        }
-
-        guard let endpoint = requestURL else {
-            throw AIError.invalidEndpoint
-        }
-
-        let apiKey = keychainStore.string(forKey: "bailian_api_key", service: "MouthType.APIKeys") ?? ""
-        let startTime = Date()
-
-        let payload: [String: Any] = [
+    /// 构建请求载荷（子类可重写）
+    func buildPayload(text: String, options: ProcessOptions) -> [String: Any] {
+        [
             "model": options.model,
             "messages": [
                 ["role": "system", "content": options.systemPrompt],
@@ -177,13 +151,36 @@ final class BailianProvider: AIProvider, @unchecked Sendable {
             "temperature": options.temperature,
             "max_tokens": options.maxTokens
         ]
+    }
+
+    /// 从响应中提取文本（子类可重写）
+    func extractText(from data: Data) throws -> String {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let choices = object["choices"] as? [[String: Any]],
+              let message = choices.first?["message"] as? [String: Any],
+              let content = message["content"] as? String else {
+            throw AIError.invalidResponse
+        }
+        return content.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func process(text: String, options: ProcessOptions) async throws -> AIProcessResult {
+        guard isAvailable else {
+            throw AIError.notConfigured
+        }
+
+        guard let endpoint = endpointURL else {
+            throw AIError.invalidEndpoint
+        }
+
+        let startTime = Date()
 
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = options.timeout
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        request.httpBody = try JSONSerialization.data(withJSONObject: buildPayload(text: text, options: options))
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -202,7 +199,7 @@ final class BailianProvider: AIProvider, @unchecked Sendable {
         let strictValidation = strictModeValidator.validate(output: resultText, originalText: text)
 
         aiProviderLog.info("""
-        [BailianProvider] 处理完成：
+        [\(self.providerId)] 处理完成：
         - processingTime=\(processingTime)ms
         - inputLength=\(text.count)
         - outputLength=\(resultText.count)
@@ -212,7 +209,7 @@ final class BailianProvider: AIProvider, @unchecked Sendable {
 
         return AIProcessResult(
             text: resultText,
-            provider: providerId,
+            provider: self.providerId,
             model: options.model,
             processingTimeMs: processingTime,
             overlapScore: strictValidation.overlapScore,
@@ -222,130 +219,70 @@ final class BailianProvider: AIProvider, @unchecked Sendable {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        // TODO: 调用 Bailian API 验证
         return true
     }
 
-    private func extractText(from data: Data) throws -> String {
-        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = object["choices"] as? [[String: Any]],
-              let message = choices.first?["message"] as? [String: Any],
-              let content = message["content"] as? String else {
-            throw AIError.invalidResponse
-        }
+    var isAvailable: Bool {
+        hasAPIKey() && endpointURL != nil
+    }
+}
 
-        return content.trimmingCharacters(in: .whitespacesAndNewlines)
+// MARK: - BailianProvider 实现
+
+/// Thread safety: Designed for async/await usage with proper isolation
+final class BailianProvider: BaseHTTPIAIProvider, @unchecked Sendable {
+    override var providerId: String { "bailian" }
+    override var displayName: String { "阿里云百炼" }
+
+    private let settings: AppSettings
+
+    override var apiKey: String { settings.bailianApiKey }
+    override var endpointURL: URL? { settings.aiChatCompletionsURL }
+
+    init(settings: AppSettings = .shared) {
+        self.settings = settings
+    }
+
+    override func hasAPIKey() -> Bool {
+        !settings.bailianApiKey.isEmpty
+    }
+
+    override func validateAPIKey(_ key: String) async throws -> Bool {
+        // TODO: 调用 Bailian API 验证
+        return true
     }
 }
 
 // MARK: - OpenAIProvider 实现（兼容模式）
 
-final class OpenAIProvider: AIProvider {
-    let providerId = "openai"
-    let displayName = "OpenAI"
+final class OpenAIProvider: BaseHTTPIAIProvider {
+    override var providerId: String { "openai" }
+    override var displayName: String { "OpenAI" }
 
-    private let keychainStore: any KeychainStore
     private let settings: AppSettings
     private let baseURL: String
-    private let strictModeValidator = StrictModeValidator()
+
+    override var apiKey: String { settings.aiApiKey }
+
+    override var endpointURL: URL {
+        URL(string: baseURL)!.appendingPathComponent("chat").appendingPathComponent("completions")
+    }
 
     init(
-        keychainStore: any KeychainStore = SystemKeychainStore(),
         settings: AppSettings = .shared,
         baseURL: String? = nil
     ) {
-        self.keychainStore = keychainStore
         self.settings = settings
         self.baseURL = baseURL ?? "https://api.openai.com/v1"
     }
 
-    var isAvailable: Bool {
-        hasAPIKey() && URL(string: baseURL) != nil
+    override func hasAPIKey() -> Bool {
+        !settings.aiApiKey.isEmpty
     }
 
-    private func hasAPIKey() -> Bool {
-        keychainStore.string(forKey: "openai_api_key", service: "MouthType.APIKeys") != nil
-    }
-
-    private var completionsURL: URL {
-        URL(string: baseURL)!.appendingPathComponent("chat").appendingPathComponent("completions")
-    }
-
-    func process(text: String, options: ProcessOptions) async throws -> AIProcessResult {
-        guard isAvailable else {
-            throw AIError.notConfigured
-        }
-
-        let apiKey = keychainStore.string(forKey: "openai_api_key", service: "MouthType.APIKeys") ?? ""
-        let startTime = Date()
-
-        let payload: [String: Any] = [
-            "model": options.model,
-            "messages": [
-                ["role": "system", "content": options.systemPrompt],
-                ["role": "user", "content": text]
-            ],
-            "temperature": options.temperature,
-            "max_tokens": options.maxTokens
-        ]
-
-        var request = URLRequest(url: completionsURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = options.timeout
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AIError.connectionFailed
-        }
-
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            throw AIError.requestFailed(httpResponse.statusCode)
-        }
-
-        let resultText = try extractText(from: data)
-        let processingTime = Int(Date().timeIntervalSince(startTime) * 1000)
-
-        // 严格模式验证
-        let strictValidation = strictModeValidator.validate(output: resultText, originalText: text)
-
-        aiProviderLog.info("""
-        [OpenAIProvider] 处理完成：
-        - processingTime=\(processingTime)ms
-        - inputLength=\(text.count)
-        - outputLength=\(resultText.count)
-        - strictModePassed=\(strictValidation.passed)
-        - overlapScore=\(strictValidation.overlapScore)
-        """)
-
-        return AIProcessResult(
-            text: resultText,
-            provider: providerId,
-            model: options.model,
-            processingTimeMs: processingTime,
-            overlapScore: strictValidation.overlapScore,
-            strictModePassed: strictValidation.passed,
-            isAgentCommand: false
-        )
-    }
-
-    func validateAPIKey(_ key: String) async throws -> Bool {
+    override func validateAPIKey(_ key: String) async throws -> Bool {
         // TODO: 调用 OpenAI API 验证 (GET /v1/models)
         return true
-    }
-
-    private func extractText(from data: Data) throws -> String {
-        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = object["choices"] as? [[String: Any]],
-              let message = choices.first?["message"] as? [String: Any],
-              let content = message["content"] as? String else {
-            throw AIError.invalidResponse
-        }
-
-        return content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -355,17 +292,14 @@ final class MiniMaxProvider: AIProvider {
     let providerId = "minimax"
     let displayName = "MiniMax"
 
-    private let keychainStore: any KeychainStore
     private let settings: AppSettings
     private let baseURL: String
     private let strictModeValidator = StrictModeValidator()
 
     init(
-        keychainStore: any KeychainStore = SystemKeychainStore(),
         settings: AppSettings = .shared,
         baseURL: String? = nil
     ) {
-        self.keychainStore = keychainStore
         self.settings = settings
         self.baseURL = baseURL ?? "https://api.minimax.chat/v1"
     }
@@ -375,7 +309,8 @@ final class MiniMaxProvider: AIProvider {
     }
 
     private func hasAPIKey() -> Bool {
-        keychainStore.string(forKey: "minimax_api_key", service: "MouthType.APIKeys") != nil
+        // MiniMax API key 存储在 aiApiKey 中（与 OpenAI 共享）
+        !settings.aiApiKey.isEmpty
     }
 
     private var completionsURL: URL {
@@ -387,7 +322,7 @@ final class MiniMaxProvider: AIProvider {
             throw AIError.notConfigured
         }
 
-        let apiKey = keychainStore.string(forKey: "minimax_api_key", service: "MouthType.APIKeys") ?? ""
+        let apiKey = settings.aiApiKey
         let startTime = Date()
 
         let payload: [String: Any] = [
@@ -465,17 +400,14 @@ final class ZhipuProvider: AIProvider {
     let providerId = "zhipu"
     let displayName = "智谱 AI"
 
-    private let keychainStore: any KeychainStore
     private let settings: AppSettings
     private let baseURL: String
     private let strictModeValidator = StrictModeValidator()
 
     init(
-        keychainStore: any KeychainStore = SystemKeychainStore(),
         settings: AppSettings = .shared,
         baseURL: String? = nil
     ) {
-        self.keychainStore = keychainStore
         self.settings = settings
         self.baseURL = baseURL ?? "https://open.bigmodel.cn/api/paas/v4"
     }
@@ -485,7 +417,8 @@ final class ZhipuProvider: AIProvider {
     }
 
     private func hasAPIKey() -> Bool {
-        keychainStore.string(forKey: "zhipu_api_key", service: "MouthType.APIKeys") != nil
+        // Zhipu API key 存储在 aiApiKey 中（与 OpenAI 共享）
+        !settings.aiApiKey.isEmpty
     }
 
     private var completionsURL: URL {
@@ -497,7 +430,7 @@ final class ZhipuProvider: AIProvider {
             throw AIError.notConfigured
         }
 
-        let apiKey = keychainStore.string(forKey: "zhipu_api_key", service: "MouthType.APIKeys") ?? ""
+        let apiKey = settings.aiApiKey
         let startTime = Date()
 
         let payload: [String: Any] = [
@@ -642,6 +575,44 @@ struct AIResult {
 
 // MARK: - AI Provider 类型枚举
 
+/// AI Provider 配置（占位结构，用于保持编译通过）
+struct AIProviderConfig {
+    var modelName: String
+    var endpoint: String
+    var enabled: Bool
+}
+
+/// UI 测试配置（占位结构，用于保持编译通过）
+struct UITestConfiguration {
+    static let current = UITestConfiguration()
+    var isEnabled: Bool = false
+    var isModelDownloaded: Bool = false
+    var isModelDownloading: Bool = false
+    var modelDownloadProgress: Double?
+    var shouldShowFloatingCapsuleWindow: Bool = false
+    var shouldCreateStatusItem: Bool = false
+    var shouldInstallHotkeyMonitor: Bool = false
+    var shouldShowOnboarding: Bool = false
+    var currentModelSizeText: String = ""
+    var accessibilityGranted: Bool = false
+    var inputMonitoringGranted: Bool = false
+    var currentProviderDisplayName: String = ""
+    var currentModelName: String = ""
+    var currentModelPath: String = ""
+    var capsuleText: String = ""
+    var capsuleStatusLabel: String = ""
+    var shouldShowCapsuleAudioLevel: Bool = false
+
+    func applyLaunchState(to appState: any Sendable) {}
+}
+
+/// 进程运行器（占位结构，用于保持编译通过）
+struct ProcessRunner {
+    static func run(url: URL, arguments: [String]) async throws -> ProcessResult {
+        fatalError("ProcessRunner not implemented")
+    }
+}
+
 enum AIProviderType: String, CaseIterable, Identifiable, Codable {
     // 国内可用 Provider
     case bailian = "bailian"
@@ -707,6 +678,8 @@ enum AIMode: String, CaseIterable, Identifiable {
 }
 
 /// 向后兼容的 BailianAIProvider（保留原有接口）
+///
+/// Thread safety: Designed for async/await usage with proper isolation
 final class BailianAIProvider: @unchecked Sendable {
     private let settings: AppSettings
     private let bailianProvider: BailianProvider

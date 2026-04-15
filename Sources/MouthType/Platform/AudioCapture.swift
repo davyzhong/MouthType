@@ -4,6 +4,22 @@ import os
 
 private let audioCaptureLog = Logger(subsystem: "com.mouthtype", category: "AudioCapture")
 
+// MARK: - Audio Configuration
+
+/// 音频配置常量
+enum AudioConfiguration {
+    /// ASR 引擎目标采样率：16kHz
+    static let targetSampleRate: Double = 16000
+    /// Tap 停止宽限期：基于音频缓冲排空时间
+    static let tapStopGracePeriod: TimeInterval = 0.08
+    /// 捕获按键释放后的尾音延迟
+    static let tailAudioCaptureDelay: TimeInterval = 0.15
+    /// 音频通道数：单声道
+    static let channels: AVAudioChannelCount = 1
+    /// 每样本位数：16-bit PCM
+    static let bitsPerSample: UInt16 = 16
+}
+
 final class AudioCapture: @unchecked Sendable {
     final class TapDrainCoordinator {
         private let condition = NSCondition()
@@ -76,7 +92,7 @@ final class AudioCapture: @unchecked Sendable {
     private let tapDrainCoordinator = TapDrainCoordinator()
     /// 80ms 宽限期 - 基于音频缓冲排空时间的经验值
     /// 允许进行中的音频回调在停止前完成写入
-    private let tapStopGracePeriod: TimeInterval = 0.08
+    private let tapStopGracePeriod: TimeInterval = AudioConfiguration.tapStopGracePeriod
     private var engine: AVAudioEngine?
     private var outputFileURL: URL?
     private var streamingHandler: ((Data) -> Void)?
@@ -227,7 +243,7 @@ final class AudioCapture: @unchecked Sendable {
         }
 
         // 创建 16kHz 单声道目标格式（ASR 引擎需要）
-        let outputFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: true)!
+        let outputFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: AudioConfiguration.targetSampleRate, channels: AudioConfiguration.channels, interleaved: true)!
         guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
             audioCaptureLog.error("[startRecording] 无法创建格式转换器")
             throw AudioCaptureError.engineStartFailed
@@ -263,7 +279,7 @@ final class AudioCapture: @unchecked Sendable {
 
             // 格式转换：inputFormat → 16kHz Int16 单声道
             let outputBufferSize = AVAudioFrameCount(
-                Double(inputBuffer.frameLength) * 16_000.0 / inputFormat.sampleRate
+                Double(inputBuffer.frameLength) * AudioConfiguration.targetSampleRate / inputFormat.sampleRate
             )
             guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: outputBufferSize) else {
                 return
@@ -351,6 +367,12 @@ final class AudioCapture: @unchecked Sendable {
 
             } catch {
                 audioCaptureLog.error("[stopRecording] WAV 写入失败：\(error.localizedDescription)")
+                // 清理失败的临时文件
+                if let url = outputFileURL {
+                    try? FileManager.default.removeItem(at: url)
+                    audioCaptureLog.info("[stopRecording] 已清理临时文件：\(url.lastPathComponent)")
+                }
+                outputFileURL = nil
                 return nil
             }
         }
@@ -361,9 +383,9 @@ final class AudioCapture: @unchecked Sendable {
     /// 原子性写入 WAV 文件（44 字节 Header + PCM Data）
     private func writeWAVFile(pcmData: Data, to url: URL) throws {
         // 1. 计算 WAV 参数
-        let sampleRate: Double = 16000  // 固定 16kHz for ASR
-        let channels: UInt16 = 1        // 单声道
-        let bitsPerSample: UInt16 = 16  // Int16 PCM
+        let sampleRate: Double = AudioConfiguration.targetSampleRate  // 固定 16kHz for ASR
+        let channels = AudioConfiguration.channels        // 单声道 (AVAudioChannelCount)
+        let bitsPerSample: UInt16 = AudioConfiguration.bitsPerSample  // Int16 PCM
         let bytesPerSample = 2
         let dataSize = pcmData.count
 
@@ -388,7 +410,7 @@ final class AudioCapture: @unchecked Sendable {
         withUnsafeBytes(of: &sampleRateLE) { header.append(contentsOf: $0) }
         var byteRate = UInt32(sampleRate * Double(channels) * Double(bytesPerSample)).littleEndian
         withUnsafeBytes(of: &byteRate) { header.append(contentsOf: $0) }
-        var blockAlign = UInt16(channels * UInt16(bytesPerSample)).littleEndian
+        var blockAlign = UInt16(UInt16(channels) * UInt16(bytesPerSample)).littleEndian
         withUnsafeBytes(of: &blockAlign) { header.append(contentsOf: $0) }
         var bitsPerSampleLE = bitsPerSample.littleEndian
         withUnsafeBytes(of: &bitsPerSampleLE) { header.append(contentsOf: $0) }
@@ -467,7 +489,7 @@ final class AudioCapture: @unchecked Sendable {
 
         let node = engine.inputNode
         // Resample to 16kHz mono for ASR
-        let outputFormat = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
+        let outputFormat = AVAudioFormat(standardFormatWithSampleRate: AudioConfiguration.targetSampleRate, channels: AudioConfiguration.channels)!
 
         // Install tap on input format, then convert
         let inputFormat = node.outputFormat(forBus: 0)
@@ -479,7 +501,7 @@ final class AudioCapture: @unchecked Sendable {
             guard let self else { return }
 
             let outputBufferSize = AVAudioFrameCount(
-                Double(inputBuffer.frameLength) * 16000.0 / inputFormat.sampleRate
+                Double(inputBuffer.frameLength) * AudioConfiguration.targetSampleRate / inputFormat.sampleRate
             )
             guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: outputBufferSize) else {
                 return

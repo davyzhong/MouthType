@@ -8,6 +8,8 @@ private let insertionLog = RedactedLogger(subsystem: "com.mouthtype", category: 
 /// 插入计划执行器
 ///
 /// 根据插入计划执行文本插入操作
+///
+/// Thread safety: Designed for async/await usage with MainActor
 final class InsertionPlanExecutor: @unchecked Sendable {
     private let pasteboard = NSPasteboard.general
     private var previousClipboardContents: String?

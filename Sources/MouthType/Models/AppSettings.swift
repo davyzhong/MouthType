@@ -275,7 +275,7 @@ final class AppSettings: @unchecked Sendable {
         }
 
         // 步骤 3: 验证 host
-        guard var host = components.host?.lowercased(), !host.isEmpty else {
+        guard let host = components.host?.lowercased(), !host.isEmpty else {
             logger.warning("URL host 为空：\(input)")
             return nil
         }
@@ -308,13 +308,23 @@ final class AppSettings: @unchecked Sendable {
             return nil
         }
 
-        // 规范化 URL
+        // 步骤 8: 规范化 URL
         components.scheme = "https"
         components.host = host
         let normalizedPath = "/" + components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         components.path = normalizedPath == "/" ? "/compatible-mode/v1" : normalizedPath
 
-        return components.url
+        // 步骤 9: 重新验证规范化后的 URL（防止 URL 编码绕过）
+        guard let finalURL = components.url,
+              let finalHost = finalURL.host?.lowercased(),
+              !Self.isBlockedIP(finalHost),
+              !isInternalHost(finalHost),
+              allowedAIHosts.contains(finalHost) else {
+            logger.warning("SSRF 防护：规范化后检测到不安全地址：\(components.url?.absoluteString ?? "unknown")")
+            return nil
+        }
+
+        return finalURL
     }
 
     var aiChatCompletionsURL: URL? {
@@ -568,6 +578,13 @@ final class AppSettings: @unchecked Sendable {
             return nil
         }
 
+        // SSRF 防护：禁止路径遍历
+        let rawPath = components.path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawPath.contains("..") else {
+            logger.warning("SSRF 防护：检测到路径遍历尝试：\(rawPath)")
+            return nil
+        }
+
         components.scheme = "wss"
         components.host = host
         components.query = nil
@@ -577,6 +594,14 @@ final class AppSettings: @unchecked Sendable {
         components.path = normalizedPath == "/" ? bailianRealtimePath : normalizedPath
 
         guard components.path == bailianRealtimePath else {
+            return nil
+        }
+
+        // 重新验证规范化后的 URL
+        guard let finalURL = components.url,
+              let finalHost = finalURL.host?.lowercased(),
+              finalHost == bailianAllowedHost else {
+            logger.warning("SSRF 防护：规范化后 host 验证失败")
             return nil
         }
 

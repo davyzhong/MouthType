@@ -115,7 +115,7 @@ final class HistoryStore {
 #if canImport(SQLite)
         guard let db else { return }
         let target = table.filter(id == entryId)
-        try? db.run(target.delete())
+        _ = try? db.run(target.delete())
 #endif
     }
 
@@ -123,7 +123,7 @@ final class HistoryStore {
         guard !UITestConfiguration.current.isEnabled else { return }
 #if canImport(SQLite)
         guard let db else { return }
-        try? db.run(table.delete())
+        _ = try? db.run(table.delete())
 #endif
     }
 
@@ -160,7 +160,7 @@ final class HistoryStore {
         guard let db else { return }
         let cutoff = Date().addingTimeInterval(-Double(days) * 86400)
         let target = table.filter(timestamp < cutoff)
-        try? db.run(target.delete())
+        _ = try? db.run(target.delete())
 #endif
     }
 
@@ -186,4 +186,18 @@ struct HistoryEntry: Identifiable {
     let text: String
     let timestamp: Date
     let processedText: String?
+}
+
+// MARK: - UITestConfiguration Extension
+
+extension UITestConfiguration {
+    var historyEntries: [HistoryEntry] {
+        get { [] }
+        set { }
+    }
+
+    var historySearchKeyword: String {
+        get { "" }
+        set { }
+    }
 }

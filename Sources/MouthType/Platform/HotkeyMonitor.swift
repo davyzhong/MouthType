@@ -52,7 +52,9 @@ final class HotkeyMonitor: @unchecked Sendable {
 
         // Wire audio level to appState for UI display
         audioCapture.onAudioLevel = { [weak appState] level in
-            appState?.setAudioLevel(level)
+            Task { @MainActor in
+                appState?.setAudioLevel(level)
+            }
         }
 
         setupMonitoring()
@@ -429,7 +431,7 @@ final class HotkeyMonitor: @unchecked Sendable {
                     cleanup(audioURL)
                     return
                 }
-                hotkeyLog.info("[tapTranscribe] 转写完成，result.simplifiedText=\(result.simplifiedText.prefix(50))")
+                hotkeyLog.info("[tapTranscribe] 转写完成，result.simplifiedText=\(LogRedaction.redactTranscript(result.simplifiedText.prefix(50).description))")
                 guard !result.simplifiedText.isEmpty else {
                     hotkeyLog.warning("[tapTranscribe] 转写结果为空，返回 idle")
                     self.appState.transition(to: .idle)
@@ -443,7 +445,7 @@ final class HotkeyMonitor: @unchecked Sendable {
                 if self.settings.aiEnabled, self.aiProvider.isAvailable {
                     try await self.processWithAI(text: text)
                 } else {
-                    hotkeyLog.info("[tapTranscribe] 准备粘贴文本：\(text.prefix(50))")
+                    hotkeyLog.info("[tapTranscribe] 准备粘贴文本：\(LogRedaction.redactTranscript(text.prefix(50).description))")
                     HistoryStore.shared.insert(raw: text)
                     do {
                         try await self.pasteService.paste(text: text)
@@ -456,7 +458,7 @@ final class HotkeyMonitor: @unchecked Sendable {
                     self.applyPendingHotkeyReloadIfNeeded()
                 }
             } catch {
-                hotkeyLog.error("[tapTranscribe] 错误：\(error.localizedDescription)")
+                hotkeyLog.error("[tapTranscribe] 错误：\(LogRedaction.redactLogMessage(error.localizedDescription))")
                 self.appState.transitionToError(error.localizedDescription)
             }
             self.cleanup(audioURL)
@@ -571,11 +573,12 @@ final class HotkeyMonitor: @unchecked Sendable {
         return .cleanup
     }
 
+    @MainActor
     private func resetSessionState(
         transitionToIdle: Bool,
         cancelActiveStopTask: Bool = true
     ) async {
-        appState.audioLevel = 0
+        appState.setAudioLevel(0)
         isKeyDown = false
         isCloudFallbackMode = false
         pendingStreamingFinalText = nil

@@ -44,7 +44,7 @@ final class AppState {
     func transitionToError(_ message: String) {
         // 清空流式文本和音频级别
         streamingText = ""
-        audioLevel = 0
+        setAudioLevel(0)
 
         errorMessage = message
         dictationState = .error(message)
@@ -80,7 +80,7 @@ final class AppState {
         switch state {
         case .idle:
             streamingText = ""
-            audioLevel = 0
+            setAudioLevel(0)
             errorMessage = ""
         case .streaming(let text):
             streamingText = text

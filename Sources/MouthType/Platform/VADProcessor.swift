@@ -11,6 +11,8 @@ private let vadLog = Logger(subsystem: "com.mouthtype", category: "VAD")
 /// - `.activating`: Building confidence, ring buffer pre-roll
 /// - `.active`: Voice detected, streaming audio
 /// - `.trailing`: Voice ended, hangover period for re-activation
+///
+/// Thread safety: Designed for single-threaded audio processing queue
 final class VADProcessor: @unchecked Sendable {
     // MARK: - Configuration
 

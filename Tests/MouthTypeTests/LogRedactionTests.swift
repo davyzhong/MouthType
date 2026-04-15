@@ -13,6 +13,11 @@ final class LogRedactionTests: XCTestCase {
             ("test@example.com", "[EMAIL"),
             ("+1-555-123-4567", "[PHONE"),
             ("1234-5678-9012-3456", "[CARD"),
+            ("110105194912311234", "[ID"),  // 中国身份证号
+            ("6222 0212 3456 7890", "[BANK"),  // 银行卡号
+            ("13812345678", "[MOBILE"),  // 中国手机号
+            ("https://example.com/search?q=test", "[URL"),  // URL
+            ("wxid_abc123def456", "[WECHAT"),  // 微信 ID
         ]
 
         for (input, expectedMarker) in testCases {
