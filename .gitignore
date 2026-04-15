@@ -1,0 +1,27 @@
+# Swift/SwiftPM
+.build/
+DerivedData/
+*.xcodeproj/project.xcworkspace/
+*.xcuserdata/
+
+# Build artifacts
+build/
+
+# Large model files (download at runtime)
+Resources/whisper-models/
+Resources/sensevoice-models/
+Resources/paraformer-models/
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Test
+*.db

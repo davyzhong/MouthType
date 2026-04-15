@@ -1,0 +1,49 @@
+{
+  "_comment": "=== MouthType LLM Provider 配置文件 ===",
+  "_version": "1.0",
+  "_description": "配置所有 LLM Provider 的信息。在下方 providers 数组中填写你的 API Key。",
+
+  "providers": [
+    {
+      "id": "bailian",
+      "name": "阿里云百炼",
+      "enabled": true,
+      "defaultModel": "qwen-plus",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "apiKey": "请在此处填写你的阿里云百炼 API Key",
+      "description": "阿里云百炼 Qwen 模型，中文优化"
+    },
+    {
+      "id": "minimax",
+      "name": "MiniMax",
+      "enabled": true,
+      "defaultModel": "MiniMax-Text-01",
+      "endpoint": "https://api.minimax.chat/v1",
+      "apiKey": "请在此处填写你的 MiniMax API Key",
+      "description": "MiniMax 海螺 AI，高性价比"
+    },
+    {
+      "id": "zhipu",
+      "name": "智谱 AI",
+      "enabled": true,
+      "defaultModel": "glm-4",
+      "endpoint": "https://open.bigmodel.cn/api/paas/v4",
+      "apiKey": "请在此处填写你的智谱 AI API Key",
+      "description": "智谱 GLM 模型，学术场景优化"
+    }
+  ],
+
+  "fallbackChain": {
+    "enabled": false,
+    "providerOrder": ["bailian", "zhipu", "minimax"],
+    "stopOnFirstSuccess": true,
+    "minOverlapScore": 0.3
+  },
+
+  "globalSettings": {
+    "strictModeEnabled": true,
+    "aiEnabled": false,
+    "agentName": "MouthType",
+    "aiIterations": 1
+  }
+}
