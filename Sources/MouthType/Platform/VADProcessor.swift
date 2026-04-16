@@ -183,7 +183,6 @@ final class VADProcessor: @unchecked Sendable {
     }
 
     private func processFrame(level: Float, rawLevel: Float, shouldEmit: (Data) -> Void) {
-        _ = isVoiceActive
         let oldState = state
 
         switch state {

@@ -185,6 +185,8 @@ struct FloatingCapsuleView: View {
         Capsule()
             .fill(.blue.opacity(0.6))
             .frame(width: 4, height: max(4, min(40, CGFloat(appState.audioLevel) * 50)))
-            .animation(.easeInOut(duration: 0.05), value: appState.audioLevel)
+            // 优化：将动画持续时间从 50ms 增加到 120ms，减少 GPU 刷新频率
+            // 配合 AppState.setAudioLevel 的节流，整体降低音频级别更新对 UI 性能的影响
+            .animation(.easeInOut(duration: 0.12), value: appState.audioLevel)
     }
 }

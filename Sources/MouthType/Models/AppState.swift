@@ -24,9 +24,17 @@ final class AppState {
     var errorMessage: String = ""
     var errorRecoveryTimer: Timer?
 
+    // 优化：音频级别更新节流，避免高频 UI 刷新
+    private var lastAudioLevelUpdate: TimeInterval = 0
+
     /// 设置音频级别，自动限制在 0.0 - 1.0 范围内
+    /// 节流：每 100ms 最多更新一次，减少 UI 动画开销
     @MainActor
     func setAudioLevel(_ level: Float) {
+        let now = Date.timeIntervalSinceReferenceDate
+        guard now - lastAudioLevelUpdate >= 0.1 else { return }
+        lastAudioLevelUpdate = now
+
         _audioLevel = max(0, min(1, level))
     }
 

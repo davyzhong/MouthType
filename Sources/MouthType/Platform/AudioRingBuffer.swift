@@ -32,20 +32,32 @@ final class AudioRingBuffer: @unchecked Sendable {
 
     /// Write audio samples to buffer
     /// - Parameter samples: Array of PCM float samples (-1.0 to 1.0)
+    ///
+    /// Performance: Batch write with single lock acquisition to reduce contention
     func write(_ samples: [Float]) {
+        guard !samples.isEmpty else { return }
+
         lock.withLock {
-            for sample in samples {
-                if isFull {
-                    // Overwrite oldest sample
-                    buffer[writeIndex] = sample
-                } else {
-                    buffer.append(sample)
-                    if buffer.count == capacity {
-                        isFull = true
-                    }
+            let remainingCapacity = isFull ? capacity : (capacity - buffer.count)
+            let samplesToWrite = samples.prefix(remainingCapacity)
+
+            if samplesToWrite.isEmpty { return }
+
+            if isFull {
+                // Batch overwrite in circular fashion
+                for (i, sample) in samplesToWrite.enumerated() {
+                    buffer[(writeIndex + i) % capacity] = sample
                 }
-                writeIndex = (writeIndex + 1) % capacity
+                writeIndex = (writeIndex + samplesToWrite.count) % capacity
+            } else {
+                buffer.append(contentsOf: samplesToWrite)
+                if buffer.count >= capacity {
+                    isFull = true
+                    writeIndex = 0
+                }
             }
+
+            ringBufferLog.trace("Batch write: \(samplesToWrite.count) samples, buffer count: \(self.buffer.count), isFull: \(self.isFull)")
         }
     }
 
@@ -104,8 +116,10 @@ final class AudioRingBuffer: @unchecked Sendable {
     }
 
     /// Convert float samples to Int16 PCM data for ASR
+    ///
+    /// Performance: Single lock acquisition, direct data conversion
     func readAndResetAsPCM() -> Data {
-        let samples = lock.withLock { readAndReset() }
+        let samples = readAndReset()  // readAndReset already locks internally
         var pcmData = Data(capacity: samples.count * 2)
 
         for sample in samples {
