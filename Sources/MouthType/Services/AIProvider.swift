@@ -124,8 +124,9 @@ struct StrictModeValidator: Sendable {
 
 /// 基于 HTTP POST 的 AI Provider 通用实现
 /// 复用 Bailian、OpenAI 等提供者的共同逻辑
-@MainActor
-class BaseHTTPIAIProvider: AIProvider {
+///
+/// Thread safety: 所有方法都是 async 的，内部状态通过 let 不可变属性保证线程安全
+class BaseHTTPIAIProvider: AIProvider, @unchecked Sendable {
     var providerId: String { "base" }
     var displayName: String { "Base Provider" }
 
@@ -255,7 +256,7 @@ final class BailianProvider: BaseHTTPIAIProvider, @unchecked Sendable {
 
 // MARK: - OpenAIProvider 实现（兼容模式）
 
-final class OpenAIProvider: BaseHTTPIAIProvider {
+final class OpenAIProvider: BaseHTTPIAIProvider, @unchecked Sendable {
     override var providerId: String { "openai" }
     override var displayName: String { "OpenAI" }
 
