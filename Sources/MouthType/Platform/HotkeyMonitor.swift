@@ -23,7 +23,6 @@ final class HotkeyMonitor: @unchecked Sendable {
     private let bailianProvider = BailianStreamingProvider()
     private let aiProvider = BailianAIProvider()
     private let contextLearning = ContextLearningService.shared
-    private let stabilizer = TranscriptStabilizer()
     private let postProcessExecutor = PostProcessExecutor()
 
     private var isKeyDown = false
@@ -38,7 +37,6 @@ final class HotkeyMonitor: @unchecked Sendable {
     private var appliedHotkey: ActivationHotkey
     private var pendingHotkeyReload = false
     private let eventTapContext: Unmanaged<EventTapContext>
-    private var stabilizerSessionId: String = ""
 
     private var selectedHotkey: ActivationHotkey {
         appliedHotkey
@@ -554,23 +552,6 @@ final class HotkeyMonitor: @unchecked Sendable {
         for hotword in hotwords {
             postProcessExecutor.addLearnedTerm(hotword)
         }
-    }
-
-    private func detectAIMode(for text: String) -> AIMode {
-        let agentName = settings.agentName
-        let lowercased = text.lowercased()
-
-        let heyPrefixes = ["hey ", "嘿 "]
-        for prefix in heyPrefixes {
-            if lowercased.hasPrefix(prefix) {
-                let remainder = String(text.dropFirst(prefix.count))
-                if remainder.hasPrefix(agentName) {
-                    return .agentCommand
-                }
-            }
-        }
-
-        return .cleanup
     }
 
     @MainActor

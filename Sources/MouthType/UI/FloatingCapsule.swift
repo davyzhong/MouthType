@@ -54,8 +54,6 @@ final class FloatingCapsuleWindow: NSPanel {
 struct FloatingCapsuleView: View {
     let appState: AppState
     @AppStorage("activationHotkey") private var activationHotkeyRawValue: String = ActivationHotkey.defaultValue.rawValue
-    @State private var previousStreamingText: String = ""
-    @State private var textChangeCount: Int = 0
 
     private var activationHotkey: ActivationHotkey {
         ActivationHotkey(rawValue: activationHotkeyRawValue) ?? .defaultValue
