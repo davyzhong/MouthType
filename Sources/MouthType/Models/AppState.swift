@@ -88,7 +88,7 @@ final class AppState {
         switch state {
         case .idle:
             streamingText = ""
-            setAudioLevel(0)
+            _audioLevel = 0
             errorMessage = ""
         case .streaming(let text):
             streamingText = text

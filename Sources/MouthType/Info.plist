@@ -19,12 +19,10 @@
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>LSUIElement</key>
-    <false/>
+    <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>MouthType 需要访问麦克风以进行语音转写。</string>
     <key>NSAppleEventsUsageDescription</key>
-    <string>MouthType 需要发送按键以粘贴转写后的文本。</string>
-    <key>NSAppleEventsUsageUsageDescription</key>
     <string>MouthType 需要控制其他应用以粘贴文本。</string>
     <key>NSEventMonitoringUsageDescription</key>
     <string>MouthType 需要监控键盘事件以实现全局热键功能。</string>

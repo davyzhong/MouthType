@@ -470,26 +470,33 @@ final class AppSettings: @unchecked Sendable {
     }
 
     var bailianChatCompletionsURL: URL? {
-        guard var components = normalizedBailianEndpointComponents() else {
+        // 使用独立的 endpoint 解析（不依赖 WebSocket URL）
+        guard var components = URLComponents(
+            string: bailianEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        ),
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host?.lowercased(),
+              (scheme == "https" || scheme == "wss"),
+              host == bailianAllowedHost,
+              components.user == nil,
+              components.password == nil,
+              components.port == nil || components.port == 443 else {
             return nil
         }
 
         components.scheme = "https"
-        let normalizedPath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        if normalizedPath.hasSuffix("compatible-mode/v1/chat/completions") {
-            components.query = nil
-            components.fragment = nil
-            return components.url
-        }
+        components.query = nil
+        components.fragment = nil
 
-        if normalizedPath.hasSuffix("compatible-mode/v1") {
-            components.path = "/\(normalizedPath)/chat/completions"
+        let normalizedPath = "/" + components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if normalizedPath.hasSuffix("compatible-mode/v1/chat/completions") {
+            components.path = normalizedPath
+        } else if normalizedPath.hasSuffix("compatible-mode/v1") {
+            components.path = "\(normalizedPath)/chat/completions"
         } else {
             components.path = "/compatible-mode/v1/chat/completions"
         }
 
-        components.query = nil
-        components.fragment = nil
         return components.url
     }
 
@@ -526,7 +533,7 @@ final class AppSettings: @unchecked Sendable {
         }
 
         defaults.removeObject(forKey: key)
-        let success = setKeychainString(trimmed, forKey: key)
+        let success = keychainStore.setString(trimmed, forKey: key, service: keychainService)
         if !success {
             postSecretStorageFailure(forKey: key)
             logger.error("设置安全字符串失败，未持久化到不安全存储：key=\(key)")

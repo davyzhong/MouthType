@@ -1,562 +1,289 @@
-# OpenWhispr Technical Reference for AI Assistants
+# MouthType Technical Reference for AI Assistants
 
-This document provides comprehensive technical details about the OpenWhispr project architecture for AI assistants working on the codebase.
+This document provides comprehensive technical details about the MouthType project architecture for AI assistants working on the codebase.
 
 ## Project Overview
 
-OpenWhispr is an Electron-based desktop dictation application that uses whisper.cpp for speech-to-text transcription. It supports both local (privacy-focused) and cloud (OpenAI API) processing modes.
+MouthType is a native macOS dictation application built with Swift and SwiftUI. It uses whisper.cpp for local speech-to-text transcription and supports cloud processing via multiple AI providers (OpenAI, Bailian/Aliyun, etc.). The app features a floating capsule UI for dictation and a WebKit WebView-based settings panel.
 
 ## Architecture Overview
 
 ### Core Technologies
-- **Frontend**: React 19, TypeScript, Tailwind CSS v4, Vite
-- **Desktop Framework**: Electron 36 with context isolation
-- **Database**: better-sqlite3 for local transcription history
-- **UI Components**: shadcn/ui with Radix primitives
-- **Speech Processing**: whisper.cpp + NVIDIA Parakeet (via sherpa-onnx) + OpenAI API
-- **Audio Processing**: FFmpeg (bundled via ffmpeg-static)
+- **Frontend UI**: SwiftUI (floating capsule) + WebKit WebView (settings panel)
+- **Desktop Framework**: Native macOS app (Swift Package Manager)
+- **Database**: SQLite.swift for local transcription history
+- **Speech Processing**: whisper.cpp (local) + multiple cloud providers
+- **Audio Processing**: AVFoundation + custom audio pipeline
 
 ### Key Architectural Decisions
 
-1. **Dual Window Architecture**:
-   - Main Window: Minimal overlay for dictation (draggable, always on top)
-   - Control Panel: Full settings interface (normal window)
-   - Both use same React codebase with URL-based routing
+1. **Dual UI Architecture**:
+   - Floating Capsule: Minimal overlay for dictation (always on top, draggable)
+   - Settings Panel: Full settings interface via WebKit WebView
+   - WebView communicates with native code via preload.js bridge
 
 2. **Process Separation**:
-   - Main Process: Electron main, IPC handlers, database operations
-   - Renderer Process: React app with context isolation
-   - Preload Script: Secure bridge between processes
+   - Main App: Swift/SwiftUI native code
+   - WebView: HTML/JS settings interface
+   - Preload Script: Secure bridge between WebView and native app
 
 3. **Audio Pipeline**:
-   - MediaRecorder API → Blob → ArrayBuffer → IPC → File → whisper.cpp
-   - Automatic cleanup of temporary files after processing
+   - AVAudioEngine → AudioBuffer → VAD processing → ASR provider
+   - Supports multiple ASR backends: Whisper (local), Bailian (cloud), etc.
 
 ## File Structure and Responsibilities
 
-### Main Process Files
+### Main App Files
 
-- **main.js**: Application entry point, initializes all managers
-- **preload.js**: Exposes safe IPC methods to renderer via window.api
+- **MouthTypeApp.swift**: Application entry point, initializes all services
+- **preload.js**: WebView bridge exposing safe native methods to JS via window.electronAPI
 
-### Native Resources (resources/)
+### Source Code (Sources/MouthType/)
 
-- **windows-key-listener.c**: C source for Windows low-level keyboard hook (Push-to-Talk)
-- **globe-listener.swift**: Swift source for macOS Globe/Fn key detection
-- **bin/**: Directory for compiled native binaries (whisper-cpp, nircmd, key listeners)
+#### Services/ (5,053 LOC - 42% of codebase)
+- **ASR Services**: Multiple transcription providers
+  - WhisperProvider: Local whisper.cpp integration
+  - BailianStreamingProvider: Aliyun Bailian real-time ASR
+  - ParaformerProvider: Alibaba Paraformer model
+  - SenseVoiceProvider: SenseVoice multilingual ASR
+- **AudioManager.swift**: Audio device management and recording
+- **VADProcessor.swift**: Voice Activity Detection
+- **TextInsertionService.swift**: Cross-app text insertion
+- **LogRedaction.swift**: Sensitive data filtering for logs
 
-### Helper Modules (src/helpers/)
+#### UI/ (2,399 LOC - 20% of codebase)
+- **FloatingCapsuleView.swift**: Main dictation interface
+- **SettingsView.swift**: Settings UI (SwiftUI)
+- **ContentView.swift**: Main window content
+- **OnboardingView.swift**: First-time setup wizard
 
-- **audioManager.js**: Handles audio device management
-- **clipboard.js**: Cross-platform clipboard operations
-  - macOS: AppleScript-based paste with accessibility permission check
-  - Windows: PowerShell SendKeys with nircmd.exe fallback
-  - Linux: Native XTest binary + compositor-aware fallbacks (xdotool, wtype, ydotool)
-- **database.js**: SQLite operations for transcription history
-- **debugLogger.js**: Debug logging system with file output
-- **devServerManager.js**: Vite dev server integration
-- **dragManager.js**: Window dragging functionality
-- **environment.js**: Environment variable and OpenAI API management
-- **hotkeyManager.js**: Global hotkey registration and management
-  - Handles platform-specific defaults (GLOBE on macOS, backtick on Windows/Linux)
-  - Auto-fallback to F8/F9 if default hotkey is unavailable
-  - Notifies renderer via IPC when hotkey registration fails
-  - Integrates with GnomeShortcutManager for GNOME Wayland support
-- **gnomeShortcut.js**: GNOME Wayland global shortcut integration
-  - Uses D-Bus service to receive hotkey toggle commands
-  - Registers shortcuts via gsettings (visible in GNOME Settings → Keyboard → Shortcuts)
-  - Converts Electron hotkey format to GNOME keysym format
-  - Only active on Linux + Wayland + GNOME desktop
-- **ipcHandlers.js**: Centralized IPC handler registration
-- **windowsKeyManager.js**: Windows Push-to-Talk support with native key listener
-  - Spawns native `windows-key-listener.exe` binary for low-level keyboard hooks
-  - Supports compound hotkeys (e.g., `Ctrl+Shift+F11`, `CommandOrControl+Space`)
-  - Emits `key-down` and `key-up` events for push-to-talk functionality
-  - Graceful fallback if binary unavailable
-- **menuManager.js**: Application menu management
-- **tray.js**: System tray icon and menu
-- **whisper.js**: Local whisper.cpp integration and model management
-- **parakeet.js**: NVIDIA Parakeet model management via sherpa-onnx
-- **parakeetServer.js**: sherpa-onnx CLI wrapper for transcription
-- **windowConfig.js**: Centralized window configuration
-- **windowManager.js**: Window creation and lifecycle management
+#### Platform/ (1,811 LOC - 15% of codebase)
+- **HotkeyMonitor.swift**: Global hotkey registration
+- **PermissionManager.swift**: System permission handling
+- **ClipboardManager.swift**: Cross-app clipboard operations
+- **WindowManager.swift**: Window creation and lifecycle
 
-### React Components (src/components/)
+#### Models/ (715 LOC - 6% of codebase)
+- **AppState.swift**: Central app state management (@Observable)
+- **AppSettings.swift**: User preferences and configuration
+- **TranscriptionRecord.swift**: Data model for transcription history
 
-- **App.jsx**: Main dictation interface with recording states
-- **ControlPanel.tsx**: Settings, history, model management UI
-- **OnboardingFlow.tsx**: 3-step first-time setup wizard (authentication, permissions, activation)
-- **SettingsPage.tsx**: Comprehensive settings interface
-- **WhisperModelPicker.tsx**: Model selection and download UI
-- **ui/**: Reusable UI components (buttons, cards, inputs, etc.)
+#### Utilities/ (106 LOC - 1% of codebase)
+- Helper functions and extensions
 
-### React Hooks (src/hooks/)
+### WebView Bridge (preload.js)
 
-- **useAudioRecording.js**: MediaRecorder API wrapper with error handling
-- **useClipboard.ts**: Clipboard operations hook
-- **useDialogs.ts**: Electron dialog integration
-- **useHotkey.js**: Hotkey state management
-- **useLocalStorage.ts**: Type-safe localStorage wrapper
-- **usePermissions.ts**: System permission checks and settings access
-  - `openMicPrivacySettings()`: Opens OS microphone privacy settings
-  - `openSoundInputSettings()`: Opens OS sound input device settings
-  - `openAccessibilitySettings()`: Opens OS accessibility settings (macOS only)
-- **useSettings.ts**: Application settings management
-- **useWhisper.ts**: Whisper binary availability check
+- **448 LOC** - Single JS file serving as WebView-to-native bridge
+- Exposes ~100 IPC channels categorized as:
+  - API Key management (~20 channels)
+  - Streaming ASR (~40 channels)
+  - Model management (~15 channels)
+  - Window control (~15 channels)
+  - Database CRUD (~10 channels)
+  - System/clipboard/hotkey (~20 channels)
 
-### Services
+### Resources/
+- ML models (Whisper, Paraformer, SenseVoice) - ~639 MB
+- Configuration files
+- Assets
 
-- **ReasoningService.ts**: AI processing for agent-addressed commands
-  - Detects when user addresses their named agent
-  - Routes to appropriate AI provider (OpenAI/Anthropic/Gemini)
-  - Removes agent name from final output
-  - Supports GPT-5, Claude 4.6 (Opus/Sonnet/Haiku), and Gemini 3.1 Pro / 3 Flash models
-
-### whisper.cpp Integration
-
-- **whisper.js**: Native binary wrapper for local transcription
-  - Bundled binaries in `resources/bin/whisper-cpp-{platform}-{arch}`
-  - Falls back to system installation (`brew install whisper-cpp`)
-  - GGML model downloads from HuggingFace
-  - Models stored in `~/.cache/openwhispr/whisper-models/`
-
-### NVIDIA Parakeet Integration (via sherpa-onnx)
-
-- **parakeet.js**: Model management for NVIDIA Parakeet ASR models
-  - Uses sherpa-onnx runtime for cross-platform ONNX inference
-  - Bundled binaries in `resources/bin/sherpa-onnx-{platform}-{arch}`
-  - INT8 quantized models for efficient CPU inference
-  - Models stored in `~/.cache/openwhispr/parakeet-models/`
-  - Server pre-warming on startup when `LOCAL_TRANSCRIPTION_PROVIDER=nvidia` is set
-  - Provider preference persisted to `.env` via `saveAllKeysToEnvFile()` on server start/stop
-
-- **Available Models**:
-  - `parakeet-tdt-0.6b-v3`: Multilingual (25 languages), ~680MB
-
-- **Download URLs**: Models from sherpa-onnx ASR models release on GitHub
-
-### Build Scripts (scripts/)
-
-- **download-whisper-cpp.js**: Downloads whisper.cpp binaries from GitHub releases
-- **download-llama-server.js**: Downloads llama.cpp server for local LLM inference
-- **download-nircmd.js**: Downloads nircmd.exe for Windows clipboard operations
-- **download-windows-key-listener.js**: Downloads prebuilt Windows key listener binary
-- **download-sherpa-onnx.js**: Downloads sherpa-onnx binaries for Parakeet support
-- **build-globe-listener.js**: Compiles macOS Globe key listener from Swift source
-- **build-windows-key-listener.js**: Compiles Windows key listener (for local development)
-- **run-electron.js**: Development script to launch Electron with proper environment
-- **lib/download-utils.js**: Shared utilities for downloading and extracting files
-  - `fetchLatestRelease(repo, options)`: Fetches latest release from GitHub API
-  - `downloadFile(url, dest)`: Downloads file with progress and retry logic
-  - `extractZip(zipPath, destDir)`: Cross-platform zip extraction
-  - `parseArgs()`: Parses CLI arguments for platform/arch targeting
-  - Supports `GITHUB_TOKEN` for authenticated requests (higher rate limits)
+### Tests/ (1,458 LOC)
+- 6 test files covering:
+  - AppSettings (keychain, endpoints, migration)
+  - AppState (state transitions, error recovery)
+  - AI Providers (availability, endpoint validation)
+  - Log Redaction (sensitive data filtering)
+  - VAD Processor (configuration, state)
+  - Whisper Provider (availability, errors)
 
 ## Key Implementation Details
 
-### 1. FFmpeg Integration
+### 1. AppState (@Observable)
 
-FFmpeg is bundled with the app and doesn't require system installation:
-```javascript
-// FFmpeg is unpacked from ASAR to app.asar.unpacked/node_modules/ffmpeg-static/
-```
+Central state management using SwiftUI's @Observable macro:
 
-### 2. Audio Recording Flow
-
-1. User presses hotkey → MediaRecorder starts
-2. Audio chunks collected in array
-3. User presses hotkey again → Recording stops
-4. Blob created from chunks → Converted to ArrayBuffer
-5. Sent via IPC
-6. Main process writes to temporary file
-7. whisper.cpp processes file → Result sent back
-8. Temporary file deleted
-
-### 3. Local Whisper Models (GGML format)
-
-Models stored in `~/.cache/openwhispr/whisper-models/`:
-- tiny: ~75MB (fastest, lowest quality)
-- base: ~142MB (recommended balance)
-- small: ~466MB (better quality)
-- medium: ~1.5GB (high quality)
-- large: ~3GB (best quality)
-- turbo: ~1.6GB (fast with good quality)
-
-### 4. Database Schema
-
-```sql
-CREATE TABLE transcriptions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  text TEXT NOT NULL,
-  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE custom_dictionary (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  word TEXT NOT NULL UNIQUE,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### 5. Settings Storage
-
-Settings stored in localStorage with these keys:
-- `whisperModel`: Selected Whisper model
-- `useLocalWhisper`: Boolean for local vs cloud
-- `openaiApiKey`: Encrypted API key
-- `anthropicApiKey`: Encrypted API key
-- `geminiApiKey`: Encrypted API key
-- `language`: Selected language code
-- `agentName`: User's custom agent name
-- `reasoningModel`: Selected AI model for processing
-- `reasoningProvider`: AI provider (openai/anthropic/gemini/local)
-- `hotkey`: Custom hotkey configuration
-- `hasCompletedOnboarding`: Onboarding completion flag
-- `customDictionary`: JSON array of words/phrases for improved transcription accuracy
-
-Environment variables persisted to `.env` (via `saveAllKeysToEnvFile()`):
-- `LOCAL_TRANSCRIPTION_PROVIDER`: Transcription engine (`nvidia` for Parakeet)
-- `PARAKEET_MODEL`: Selected Parakeet model name (e.g., `parakeet-tdt-0.6b-v3`)
-
-### 6. Language Support
-
-58 languages supported (see src/utils/languages.ts):
-- Each language has a two-letter code and label
-- "auto" for automatic detection
-- Passed to whisper.cpp via -l parameter
-
-### 7. Agent Naming System
-
-- Agent name defaults to `Mouthpiece` and can be changed later in Settings.
-- Name stored in localStorage and synchronized into the custom dictionary
-- ReasoningService detects "Hey [AgentName]" patterns
-- AI processes command and removes agent reference from output
-- Supports multiple AI providers (all models defined in `src/models/modelRegistryData.json`):
-  - **OpenAI** (Responses API):
-    - GPT-5.2 (`gpt-5.2`) - Latest flagship reasoning model
-    - GPT-5 Mini (`gpt-5-mini`) - Fast and cost-efficient
-    - GPT-5 Nano (`gpt-5-nano`) - Ultra-fast, low latency
-    - GPT-4.1 Series (`gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`) - Strong baseline with 1M context
-  - **Anthropic** (Via IPC bridge to avoid CORS):
-    - Claude Sonnet 4.6 (`claude-sonnet-4-6`) - Balanced performance
-    - Claude Haiku 4.5 (`claude-haiku-4-5`) - Fast with near-frontier intelligence
-    - Claude Opus 4.6 (`claude-opus-4-6`) - Most capable Claude model
-  - **Google Gemini** (Direct API integration):
-    - Gemini 3.1 Pro (`gemini-3.1-pro-preview`) - Most capable Gemini model
-    - Gemini 3 Flash (`gemini-3-flash-preview`) - Ultra-fast, high-capability next-gen model
-    - Gemini 2.5 Flash Lite (`gemini-2.5-flash-lite`) - Lowest latency and cost
-  - **Local**: GGUF models via llama.cpp (Qwen, Llama, Mistral, GPT-OSS)
-
-### 8. Model Registry Architecture
-
-All AI model definitions are centralized in `src/models/modelRegistryData.json` as the single source of truth:
-
-```json
-{
-  "cloudProviders": [...],   // OpenAI, Anthropic, Gemini API models
-  "localProviders": [...]    // GGUF models with download URLs
+```swift
+@Observable
+final class AppState {
+    static let shared = AppState()
+    
+    var dictationState: DictationState = .idle
+    var streamingText: String = ""
+    private var _audioLevel: Float = 0
+    var audioLevel: Float { _audioLevel }
+    var lastTranscription: String = ""
+    var errorMessage: String = ""
+    
+    @MainActor
+    func setAudioLevel(_ level: Float) { ... }
+    
+    @MainActor
+    func transition(to state: DictationState) { ... }
 }
 ```
 
-**Key files:**
-- `src/models/modelRegistryData.json` - Single source of truth for all models
-- `src/models/ModelRegistry.ts` - TypeScript wrapper with helper methods
-- `src/config/aiProvidersConfig.ts` - Derives AI_MODES from registry
-- `src/utils/languages.ts` - Derives REASONING_PROVIDERS from registry
-- `src/helpers/modelManagerBridge.js` - Handles local model downloads
+### 2. Settings Storage
 
-**Local model features:**
-- Each model has `hfRepo` for direct HuggingFace download URLs
-- `promptTemplate` defines the chat format (ChatML, Llama, Mistral)
-- Download URLs constructed as: `{baseUrl}/{hfRepo}/resolve/main/{fileName}`
+Settings stored via UserDefaults + Keychain (for sensitive data):
 
-### 9. API Integrations and Updates
+**UserDefaults keys**:
+- `bailianEndpoint`: AI endpoint URL
+- `selectedASRProvider`: Active transcription provider
+- `floatingCapsulePosition`: UI position
 
-**OpenAI Responses API (September 2025)**:
-- Migrated from Chat Completions to new Responses API
-- Endpoint: `https://api.openai.com/v1/responses`
-- Simplified request format with `input` array instead of `messages`
-- New response format with `output` array containing typed items
-- Automatic handling of GPT-5 and o-series model requirements
-- No temperature parameter for newer models (GPT-5, o-series)
+**Keychain items** (via `SystemKeychainStore`):
+- `bailian_api_key`: Bailian API key
+- `ai_api_key`: Generic AI API key
+- `openai_api_key`: OpenAI API key
 
-**Anthropic Integration**:
-- Routes through IPC handler to avoid CORS issues in renderer process
-- Uses main process for API calls with proper error handling
-- Model IDs use alias format (e.g., `claude-sonnet-4-6` not date-suffixed versions)
+**Security**: API keys never exposed to WebView; all API calls go through native code.
 
-**Gemini Integration**:
-- Direct API calls from renderer process
-- Increased token limits for Gemini 3.1 Pro (2000 minimum)
-- Proper handling of thinking process in responses
-- Error handling for MAX_TOKENS finish reason
+### 3. Audio Pipeline
 
-**API Key Persistence**:
-- All API keys now properly persist to `.env` file
-- Keys stored in environment variables and reloaded on app start
-- Centralized `saveAllKeysToEnvFile()` method ensures consistency
+1. User presses hotkey → AudioManager starts recording
+2. Audio buffers collected via AVAudioEngine
+3. VADProcessor analyzes voice activity
+4. Audio sent to active ASR provider:
+   - Local: whisper.cpp process
+   - Cloud: Streaming WebSocket or HTTP API
+5. Results sent back via callbacks
+6. TextInsertionService inserts text into active app
 
-### 10. System Settings Integration
+### 4. ASR Providers
 
-The app can open OS-level settings for microphone permissions, sound input selection, and accessibility:
+**Local (Whisper)**:
+- Models stored in `~/Library/Application Support/MouthType/Models/`
+- Binary bundled in app resources
+- Supports multiple model sizes (tiny → large)
 
-**IPC Handlers** (in `ipcHandlers.js`):
-- `open-microphone-settings`: Opens microphone privacy settings
-- `open-sound-input-settings`: Opens sound/audio input device settings
-- `open-accessibility-settings`: Opens accessibility privacy settings (macOS only)
+**Cloud (Bailian/Aliyun)**:
+- WebSocket streaming for real-time transcription
+- HTTP API for non-streaming requests
+- Endpoint validation with SSRF protection
 
-**Platform-specific URLs**:
-| Platform | Microphone Privacy | Sound Input | Accessibility |
-|----------|-------------------|-------------|---------------|
-| macOS | `x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone` | `x-apple.systempreferences:com.apple.preference.sound?input` | `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility` |
-| Windows | `ms-settings:privacy-microphone` | `ms-settings:sound` | N/A |
-| Linux | Manual (no URL scheme) | Manual (e.g., pavucontrol) | N/A |
+### 5. Log Redaction
 
-**UI Component** (`MicPermissionWarning.tsx`):
-- Shows platform-appropriate buttons and messages
-- Linux only shows "Open Sound Settings" (no separate privacy settings)
-- macOS/Windows show both sound and privacy buttons
+Sensitive data automatically filtered from logs:
+- API keys, passwords, tokens
+- Email addresses, phone numbers
+- Credit card numbers, bank accounts
+- Chinese ID numbers, mobile numbers
+- URLs (query parameters stripped)
+- File paths (directory hidden)
 
-### 11. Debug Mode
+### 6. Sensitive App Policy
 
-Enable with `--log-level=debug` or `OPENWHISPR_LOG_LEVEL=debug` (can be set in `.env`):
-- Logs saved to platform-specific app data directory
-- Comprehensive logging of audio pipeline
-- FFmpeg path resolution details
-- Audio level analysis
-- Complete reasoning pipeline debugging with stage-by-stage logging
+Privacy controls for different application contexts:
+- `fullyBlocked`: Password managers (1Password, Keychain, etc.)
+- `highPrivacy`: Financial apps (banks, Alipay, PayPal)
+- `localOnly`: Security apps (VPN, encryption tools)
+- `blockAutoLearn`: Code apps (Terminal, Xcode, VSCode)
+- `allowFullPipeline`: General apps (Safari, Notes)
 
-### 12. Windows Push-to-Talk
+### 7. Build System
 
-Native Windows support for true push-to-talk functionality using low-level keyboard hooks:
+**Swift Package Manager**:
+- `Package.swift`: Single dependency (SQLite.swift 0.16.0)
+- `swift build`: Debug build
+- `swift build -c release`: Release build
+- `swift test`: Run test suite
 
-**Architecture**:
-- `resources/windows-key-listener.c`: Native C program using Windows `SetWindowsHookEx` for keyboard hooks
-- `src/helpers/windowsKeyManager.js`: Node.js wrapper that spawns and manages the native binary
-- Binary outputs `KEY_DOWN` and `KEY_UP` to stdout when target key is pressed/released
+**Build Scripts**:
+- `scripts/build-app.sh`: Debug build with entitlements
+- `scripts/build-with-entitlements.sh`: Release build (⚠️ clears user data)
 
-**Compound Hotkey Support**:
-- Parses hotkey strings like `CommandOrControl+Shift+F11`
-- Maps modifiers: `CommandOrControl`/`Ctrl` → VK_CONTROL, `Alt`/`Option` → VK_MENU, `Shift` → VK_SHIFT
-- Verifies all required modifiers are held before emitting key events
+### 8. Info.plist Configuration
 
-**Binary Distribution**:
-- Prebuilt binary downloaded from GitHub releases (`windows-key-listener-v*` tags)
-- Download script: `scripts/download-windows-key-listener.js`
-- CI workflow: `.github/workflows/build-windows-key-listener.yml`
-- Fallback to tap mode if binary unavailable
-
-**IPC Events**:
-- `windows-key-listener:key-down`: Fired when hotkey pressed (start recording)
-- `windows-key-listener:key-up`: Fired when hotkey released (stop recording)
-
-### 13. Custom Dictionary
-
-Improve transcription accuracy for specific words, names, or technical terms:
-
-**How it works**:
-- User adds words/phrases through Settings → Custom Dictionary
-- Words stored as JSON array in localStorage (`customDictionary` key)
-- On transcription, words are joined and passed as `prompt` parameter to Whisper
-- Works with both local whisper.cpp and cloud OpenAI Whisper API
-
-**Implementation**:
-- `src/hooks/useSettings.ts`: Manages `customDictionary` state
-- `src/components/SettingsPage.tsx`: UI for adding/removing dictionary words
-- `src/helpers/audioManager.js`: Reads dictionary and adds to transcription options
-- `src/helpers/whisperServer.js`: Includes dictionary as `prompt` in API request
-
-**Whisper Prompt Parameter**:
-- Whisper uses the prompt as context/hints for transcription
-- Words in the prompt are more likely to be recognized correctly
-- Useful for: uncommon names, technical jargon, brand names, domain-specific terms
-
-### 14. GNOME Wayland Global Hotkeys
-
-On GNOME Wayland, Electron's `globalShortcut` API doesn't work due to Wayland's security model. OpenWhispr uses native GNOME shortcuts:
-
-**Architecture**:
-1. `main.js` enables `GlobalShortcutsPortal` feature flag for Wayland
-2. `hotkeyManager.js` detects GNOME + Wayland and initializes `GnomeShortcutManager`
-3. `gnomeShortcut.js` creates D-Bus service at `com.openwhispr.App`
-4. Shortcuts registered via `gsettings` as custom GNOME keybindings
-5. GNOME triggers `dbus-send` command which calls the D-Bus `Toggle()` method
-
-**Key Constants**:
-- D-Bus service: `com.openwhispr.App`
-- D-Bus path: `/com/openwhispr/App`
-- gsettings path: `/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/openwhispr/`
-
-**IPC Integration**:
-- `get-hotkey-mode-info`: Returns `{ isUsingGnome: boolean }` to renderer
-- UI hides activation mode selector when `isUsingGnome` is true
-- Forces tap-to-talk mode (push-to-talk not supported)
-
-**Hotkey Format Conversion**:
-- Electron format: `Alt+R`, `CommandOrControl+Shift+Space`
-- GNOME format: `<Alt>r`, `<Control><Shift>space`
-- Backtick (`) → `grave` in GNOME keysym format
+Key settings:
+- `LSUIElement`: true (floating app, no Dock icon)
+- `NSAppleEventsUsageDescription`: AppleScript permission for text insertion
+- `NSMicrophoneUsageDescription`: Audio recording permission
 
 ## Development Guidelines
 
-### Internationalization (i18n) — REQUIRED
-
-All user-facing strings **must** use the i18n system. Never hardcode UI text in components.
-
-**Setup**: react-i18next (v15) with i18next (v25). Translation files in `src/locales/{lang}/translation.json`.
-
-**Supported languages**: en, es, fr, de, pt, it, ru, zh-CN, zh-TW
-
-**How to use**:
-```tsx
-import { useTranslation } from "react-i18next";
-
-const { t } = useTranslation();
-// Simple: t("notes.list.title")
-// With interpolation: t("notes.upload.using", { model: "Whisper" })
-```
-
-**Rules**:
-1. Every new UI string must have a translation key in `en/translation.json` and all other language files
-2. Use `useTranslation()` hook in components and hooks
-3. Keep `{{variable}}` interpolation syntax for dynamic values
-4. Do NOT translate: brand names (OpenWhispr, Pro), technical terms (Markdown, Signal ID), format names (MP3, WAV), AI system prompts
-5. Group keys by feature area (e.g., `notes.editor.*`, `referral.toasts.*`)
-
 ### Adding New Features
 
-1. **New IPC Channel**: Add to both ipcHandlers.js and preload.js
-2. **New Setting**: Update useSettings.ts and SettingsPage.tsx
-3. **New UI Component**: Follow shadcn/ui patterns in src/components/ui
-4. **New Manager**: Create in src/helpers/, initialize in main.js
-5. **New UI Strings**: Add translation keys to all 9 language files (see i18n section above)
+1. **New IPC Channel**: Add to preload.js and corresponding Swift handler
+2. **New Setting**: Update AppSettings.swift and SettingsView
+3. **New UI Component**: Follow SwiftUI patterns in Sources/MouthType/UI/
+4. **New Service**: Create in Sources/MouthType/Services/
+5. **New Test**: Add to Tests/MouthTypeTests/
 
 ### Testing Checklist
 
-- [ ] Test both local and cloud processing modes
+- [ ] `swift build` passes with no errors
+- [ ] `swift test` passes with all tests green
+- [ ] Test both local and cloud ASR modes
 - [ ] Verify hotkey works globally
-- [ ] Check clipboard pasting on all platforms
+- [ ] Check text insertion in different target apps
 - [ ] Test with different audio input devices
-- [ ] Verify whisper.cpp binary detection
-- [ ] Test all Whisper models
-- [ ] Check agent naming functionality
-- [ ] Test custom dictionary with uncommon words
-- [ ] Verify Windows Push-to-Talk with compound hotkeys
-- [ ] Test GNOME Wayland hotkeys (if on GNOME + Wayland)
-- [ ] Verify activation mode selector is hidden on GNOME Wayland
+- [ ] Verify whisper.cpp model detection
+- [ ] Test floating capsule positioning
+- [ ] Check settings persistence across restarts
 
 ### Common Issues and Solutions
 
 1. **No Audio Detected**:
-   - Check FFmpeg path resolution
-   - Verify microphone permissions
+   - Check microphone permissions in System Settings
+   - Verify audio input device selection
    - Check audio levels in debug logs
 
 2. **Transcription Fails**:
-   - Ensure whisper.cpp binary is available
-   - Check model is downloaded
-   - Check temporary file creation
-   - Verify FFmpeg is executable
+   - Ensure whisper.cpp binary is available (check Resources/)
+   - Verify model is downloaded
+   - Check API key configuration for cloud providers
 
-3. **Clipboard Not Working**:
-   - macOS: Check accessibility permissions (required for AppleScript paste)
-   - Linux: Native `linux-fast-paste` binary (XTest) is tried first, works for X11 and XWayland apps
-     - X11: xdotool fallback if native binary unavailable
-     - GNOME/KDE Wayland: xdotool (XWayland apps) → ydotool (requires ydotoold daemon)
-     - wlroots Wayland (Sway, Hyprland): wtype → xdotool → ydotool
-   - Windows: PowerShell SendKeys (built-in) or nircmd.exe (bundled)
+3. **Text Insertion Not Working**:
+   - macOS: Check accessibility permissions (required for AppleScript)
+   - Verify target app allows text input
+   - Check if app is in blocked list (SensitiveAppPolicy)
 
 4. **Build Issues**:
-   - Use `npm run pack` for unsigned builds (CSC_IDENTITY_AUTO_DISCOVERY=false)
-   - Signing requires Apple Developer account
-   - ASAR unpacking needed for FFmpeg
-   - Run `npm run download:whisper-cpp` before packaging (current platform)
-   - Use `npm run download:whisper-cpp:all` for multi-platform packaging
-   - afterSign.js automatically skips signing when CSC_IDENTITY_AUTO_DISCOVERY=false
-
-5. **Windows Push-to-Talk Binary**:
-   - Prebuilt binary downloaded automatically on Windows during build
-   - If download fails, push-to-talk falls back to tap mode
-   - To compile locally: install Visual Studio Build Tools or MinGW-w64
-   - CI workflow (`.github/workflows/build-windows-key-listener.yml`) auto-builds on push to main
+   - Use `swift build` for development
+   - Use `swift build -c release` for production
+   - Code signing: `codesign --force --deep --sign - .build/debug/MouthType`
 
 ### Platform-Specific Notes
 
 **macOS**:
-- Requires accessibility permissions for clipboard (auto-paste)
+- Requires accessibility permissions for text insertion (AppleScript)
 - Requires microphone permission (prompted by system)
-- Uses AppleScript for reliable pasting
-- Notarization needed for distribution
-- Shows in dock with indicator dot when running (LSUIElement: false)
-- whisper.cpp bundled for both arm64 and x64
+- Floating capsule uses `NSPanel` with `canBecomeKeyWindow`
 - System settings accessible via `x-apple.systempreferences:` URL scheme
-
-**Windows**:
-- No special accessibility permissions needed
-- Microphone privacy settings at `ms-settings:privacy-microphone`
-- Sound settings at `ms-settings:sound`
-- NSIS installer for distribution
-- whisper.cpp bundled for x64
-- **Push-to-Talk**: Native key listener binary (`windows-key-listener.exe`) enables true push-to-talk
-  - Uses Windows Low-Level Keyboard Hook (`WH_KEYBOARD_LL`)
-  - Supports compound hotkeys (e.g., `Ctrl+Shift+F11`)
-  - Prebuilt binary auto-downloaded from GitHub releases
-  - Falls back to tap mode if unavailable
-
-**Linux**:
-- Multiple package manager support
-- Standard XDG directories
-- AppImage for distribution
-- whisper.cpp bundled for x64
-- No standardized URL scheme for system settings (user must open manually)
-- Privacy settings button hidden in UI (not applicable on Linux)
-- Recommend `pavucontrol` for audio device management
-- **Clipboard paste tools** (at least one required for auto-paste):
-  - **X11**: `xdotool` (recommended)
-  - **Wayland** (non-GNOME): `wtype` (requires virtual keyboard protocol) or `xdotool` (works via XWayland, recommended for Electron apps)
-  - **GNOME Wayland**: `xdotool` for XWayland apps only (native Wayland apps require manual paste)
-  - Terminal detection: Auto-detects terminal emulators and uses Ctrl+Shift+V
-  - Fallback: Text copied to clipboard with manual paste instructions
-- **GNOME Wayland global hotkeys**:
-  - Uses native GNOME shortcuts via D-Bus and gsettings (no special permissions needed)
-  - Hotkeys visible in GNOME Settings → Keyboard → Shortcuts → Custom
-  - Default hotkey: `Alt+R` (backtick not supported)
-  - Push-to-talk unavailable (GNOME shortcuts only fire single toggle event)
-  - Falls back to X11/globalShortcut if GNOME integration fails
-  - `dbus-next` npm package used for D-Bus communication
+- Minimum version: macOS 14 (Sonoma)
 
 ## Code Style and Conventions
 
-- Use TypeScript for new React components
-- Follow existing patterns in helpers/
+- Use Swift 5.9+ features (async/await, @Observable, etc.)
+- Follow existing patterns in Services/ and UI/
 - Descriptive error messages for users
-- Comprehensive debug logging
-- Clean up resources (files, listeners)
+- Comprehensive debug logging via os.Logger
+- Clean up resources (timers, listeners, subscriptions)
 - Handle edge cases gracefully
+
+## Security Considerations
+
+- API keys stored in Keychain, never exposed to WebView
+- SSRF protection for endpoint validation
+- Log redaction for sensitive data
+- Sensitive app policy for privacy control
+- No remote code execution
+- Sanitized file paths
 
 ## Performance Considerations
 
 - Whisper model size vs speed tradeoff
-- Audio blob size limits for IPC (10MB)
-- Temporary file cleanup
+- Audio level update throttling (100ms minimum)
+- VAD processing optimization
 - Memory usage with large models
-- Process timeout protection (5 minutes)
+- Process timeout protection
 
-## Security Considerations
-
-- API keys stored in system keychain when possible
-- Context isolation enabled
-- No remote code execution
-- Sanitized file paths
-- Limited IPC surface area
-
-## Future Enhancements to Consider
+## Future Enhancements
 
 - Streaming transcription support
 - Custom wake word detection
-- ~~Multi-language UI~~ (implemented — 9 languages via react-i18next)
-- Cloud model selection
+- Multi-language UI
+- Additional cloud providers
 - Batch transcription
 - Export formats beyond clipboard
 
@@ -580,25 +307,3 @@ Changes:
 - Updated error message positioning
 
 This ensures commits are readable in plain text format while providing bilingual context for all team members.
-
----
-
-## China Network Environment Considerations
-
-When downloading external resources (models, binaries, dependencies), always consider China's network environment:
-
-1. **HuggingFace**: Use mirror `hf-mirror.com` instead of `huggingface.co`
-   - Example: `https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/ggml-small.bin`
-
-2. **GitHub Releases**: Use mirror `ghproxy.com` or `mirror.ghproxy.com`
-   - Example: `https://mirror.ghproxy.com/github.com/owner/repo/releases/download/...`
-
-3. **Google Fonts/CDN**: Use mirror `fonts.googleapis.com.cn` or `cdn.jsdelivr.net`
-
-4. **Docker Images**: Use Aliyun registry `registry.cn-hangzhou.aliyuncs.com`
-
-5. **NPM/PyPI**: Configure mirrors in `.npmrc` or `pip.conf`
-   - NPM: `registry=https://registry.npmmirror.com`
-   - PyPI: `https://pypi.tuna.tsinghua.edu.cn/simple`
-
-Always provide fallback to original URLs when mirrors are unavailable.
