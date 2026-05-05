@@ -196,11 +196,12 @@ final class AppSettingsTests: XCTestCase {
 
 // MARK: - AppState Error Recovery
 
+@MainActor
 final class AppStateTests: XCTestCase {
     func testTransitionToIdleClearsStreamingState() {
         let state = AppState()
         state.streamingText = "some text"
-        state.audioLevel = 0.5
+        state.setAudioLevel(0.5)
         state.errorMessage = "old error"
 
         state.transition(to: .idle)
@@ -303,26 +304,24 @@ final class AIProviderTests: XCTestCase {
 
     func testBailianAIProviderAvailability() {
         let settings = appSettings!
-        let keychain = SystemKeychainStore()
 
-        // 清理
-        keychain.deleteValue(forKey: "bailian_api_key", service: "MouthType.APIKeys")
+        // 清理 - 直接通过 settings 设置/清除 API Key
+        settings.bailianApiKey = ""
 
         // 测试用例：有效配置应可用
-        settings.aiApiKey = "sk-test-key"
         settings.aiEndpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-        keychain.setString("sk-test-key", forKey: "bailian_api_key", service: "MouthType.APIKeys")
+        settings.bailianApiKey = "sk-test-key"
 
         var provider = BailianAIProvider(settings: settings)
-        XCTAssertTrue(provider.isAvailable, "有效配置应可用")
+        XCTAssertTrue(provider.isAvailable, "有效配置应可用 (bailianApiKey=\(settings.bailianApiKey), endpoint=\(settings.aiChatCompletionsURL?.absoluteString ?? "nil"))")
 
         // 测试用例：无 API Key 不可用
-        keychain.deleteValue(forKey: "bailian_api_key", service: "MouthType.APIKeys")
+        settings.bailianApiKey = ""
         provider = BailianAIProvider(settings: settings)
         XCTAssertFalse(provider.isAvailable, "无 API Key 应不可用")
 
         // 测试用例：HTTP 端点不可用
-        keychain.setString("sk-test-key", forKey: "bailian_api_key", service: "MouthType.APIKeys")
+        settings.bailianApiKey = "sk-test-key"
         settings.aiEndpoint = "http://insecure.example.com"
         provider = BailianAIProvider(settings: settings)
         XCTAssertFalse(provider.isAvailable, "HTTP 端点应不可用")
@@ -331,12 +330,12 @@ final class AIProviderTests: XCTestCase {
     func testBailianAIProviderRejectsInvalidEndpoints() {
         let settings = appSettings!
         let keychain = SystemKeychainStore()
-        keychain.setString("sk-test-key", forKey: "bailian_api_key", service: "MouthType.APIKeys")
+        _ = keychain.setString("sk-test-key", forKey: "bailian_api_key", service: "MouthType.APIKeys")
         settings.aiApiKey = "sk-test-key"
 
         let invalidEndpoints: [(String, String)] = [
             ("https://user:pass@example.com/compatible-mode/v1", "URL 中的凭证"),
-            ("https://example.com/compatible-mode/v1?token=abc", "查询字符串"),
+            ("https://example.com/compatible-mode/v1?token=***", "查询字符串"),
             ("https://example.com/compatible-mode/v1#fragment", "URL 片段"),
             ("https://example.com:8443/compatible-mode/v1", "非标准端口"),
         ]
