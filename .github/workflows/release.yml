@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '15.0'
+
+      - name: Build Release
+        run: |
+          ./scripts/build.sh release
+          echo "Build completed"
+
+      - name: Package App
+        run: |
+          APP_NAME="MouthType"
+          VERSION=${GITHUB_REF_NAME#v}
+          BUILD_DIR=".build/release"
+          
+          # Create DMG or ZIP package
+          mkdir -p "dist"
+          
+          # Package as ZIP
+          cd "${BUILD_DIR}"
+          zip -r "../../dist/${APP_NAME}-${VERSION}.zip" "${APP_NAME}.app"
+          cd ../..
+          
+          # Generate checksum
+          shasum -a 256 "dist/${APP_NAME}-${VERSION}.zip" > "dist/${APP_NAME}-${VERSION}.zip.sha256"
+          
+          echo "Packaged: dist/${APP_NAME}-${VERSION}.zip"
+
+      - name: Generate Release Notes
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          
+          # Extract changelog for this version
+          if [ -f CHANGELOG.md ]; then
+            # Find the section for this version
+            awk "/^## \[${VERSION}\]/{flag=1;next}/^## \[/{flag=0}flag" CHANGELOG.md > release_notes.md || true
+          fi
+          
+          # Fallback if no changelog section found
+          if [ ! -s release_notes.md ]; then
+            echo "## MouthType ${VERSION}" > release_notes.md
+            echo "" >> release_notes.md
+            echo "See [CHANGELOG.md](CHANGELOG.md) for full details." >> release_notes.md
+          fi
+          
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release_notes.md
+          files: |
+            dist/*.zip
+            dist/*.sha256
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/*
+          retention-days: 30

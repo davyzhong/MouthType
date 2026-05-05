@@ -1,0 +1,53 @@
+disabled_rules:
+  - trailing_whitespace
+  - line_length
+  - todo
+  - identifier_name
+  - function_body_length
+  - type_body_length
+  - file_length
+  - cyclomatic_complexity
+
+opt_in_rules:
+  - empty_count
+  - explicit_init
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - overridden_super_call
+  - redundant_nil_coalescing
+  - unused_import
+  - unused_declaration
+  - weak_delegate
+
+excluded:
+  - .build
+  - .swiftpm
+  - scripts
+  - Resources
+  - docs
+
+# 自定义规则
+custom_rules:
+  no_print:
+    name: "No print()"
+    regex: "print\\("
+    message: "Use Logger instead of print()"
+    severity: warning
+
+  no_nslog:
+    name: "No NSLog()"
+    regex: "NSLog\\("
+    message: "Use Logger instead of NSLog()"
+    severity: warning
+
+# 缩进
+indentation:
+  spaces: 4
+
+# 强制解包警告
+force_unwrapping:
+  severity: warning
+
+# 隐式解包可选警告
+implicitly_unwrapped_optional:
+  severity: warning
