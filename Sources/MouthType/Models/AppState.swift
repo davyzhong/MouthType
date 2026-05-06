@@ -88,7 +88,7 @@ final class AppState {
         switch state {
         case .idle:
             streamingText = ""
-            _audioLevel = 0
+            _audioLevel = 0  // 直接赋值：状态转换时立即重置，绕过节流
             errorMessage = ""
         case .streaming(let text):
             streamingText = text

@@ -17,7 +17,6 @@ module.exports = {
   getDictionary: invoke("db-get-dictionary"),
   setDictionary: invoke("db-set-dictionary"),
   onDictionaryUpdated: (callback) => {
-    const { ipcRenderer } = require("electron");
     const listener = (_event, words) => callback?.(words);
     ipcRenderer.on("dictionary-updated", listener);
     return () => ipcRenderer.removeListener("dictionary-updated", listener);
@@ -25,11 +24,9 @@ module.exports = {
 
   // Auto-learn
   setAutoLearnEnabled: (enabled) => {
-    const { ipcRenderer } = require("electron");
     ipcRenderer.send("auto-learn-changed", enabled);
   },
   onCorrectionsLearned: (callback) => {
-    const { ipcRenderer } = require("electron");
     const listener = (_event, words) => callback?.(words);
     ipcRenderer.on("corrections-learned", listener);
     return () => ipcRenderer.removeListener("corrections-learned", listener);
@@ -38,19 +35,16 @@ module.exports = {
 
   // Transcription events
   onTranscriptionAdded: (callback) => {
-    const { ipcRenderer } = require("electron");
     const listener = (_event, transcription) => callback?.(transcription);
     ipcRenderer.on("transcription-added", listener);
     return () => ipcRenderer.removeListener("transcription-added", listener);
   },
   onTranscriptionDeleted: (callback) => {
-    const { ipcRenderer } = require("electron");
     const listener = (_event, data) => callback?.(data);
     ipcRenderer.on("transcription-deleted", listener);
     return () => ipcRenderer.removeListener("transcription-deleted", listener);
   },
   onTranscriptionsCleared: (callback) => {
-    const { ipcRenderer } = require("electron");
     const listener = (_event, data) => callback?.(data);
     ipcRenderer.on("transcriptions-cleared", listener);
     return () => ipcRenderer.removeListener("transcriptions-cleared", listener);

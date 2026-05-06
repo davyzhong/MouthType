@@ -3,7 +3,6 @@ import XCTest
 
 final class ASRProviderTests: XCTestCase {
     func testASRProviderProtocolExists() {
-        // Verify that the ASRProvider protocol can be referenced
         let type: Any.Type = ASRProvider.self
         XCTAssertNotNil(type)
     }
@@ -22,7 +21,6 @@ final class ASRProviderTests: XCTestCase {
 
     func testASRResultSimplifiedText() {
         let result = ASRResult(text: "hello", language: "en")
-        // simplifiedText should not be empty
         XCTAssertFalse(result.simplifiedText.isEmpty)
     }
 
