@@ -12,6 +12,9 @@ Resources/whisper-models/
 Resources/sensevoice-models/
 Resources/paraformer-models/
 
+# User configuration (contains API keys - DO NOT COMMIT)
+.mouthtype/config.json
+
 # Logs
 *.log
 

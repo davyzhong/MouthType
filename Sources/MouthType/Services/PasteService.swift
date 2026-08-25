@@ -29,15 +29,21 @@ final class PasteService: @unchecked Sendable {
         if UITestConfiguration.current.isEnabled {
             return UITestConfiguration.current.accessibilityGranted
         }
-        return AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): false] as CFDictionary)
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): false] as CFDictionary
+        let granted = AXIsProcessTrustedWithOptions(options)
+        return granted
     }
 
     /// Prompt user to grant accessibility permission
-    static func promptAccessibility() {
+    /// Returns true if already granted, false if user needs to go to System Settings
+    @discardableResult
+    static func promptAccessibility() -> Bool {
         guard !UITestConfiguration.current.isEnabled else {
-            return
+            return UITestConfiguration.current.accessibilityGranted
         }
-        AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
+        let granted = AXIsProcessTrustedWithOptions(options)
+        return granted
     }
 
     static func checkInputMonitoring() -> Bool {
@@ -54,9 +60,11 @@ final class PasteService: @unchecked Sendable {
     }
 
     /// Prompt user to grant input monitoring permission
-    static func promptInputMonitoring() {
+    /// Returns true if already granted, false if user needs to go to System Settings
+    @discardableResult
+    static func promptInputMonitoring() -> Bool {
         guard !UITestConfiguration.current.isEnabled else {
-            return
+            return UITestConfiguration.current.inputMonitoringGranted
         }
         // macOS 15.0+ 先尝试请求权限
         if #available(macOS 15.0, *) {
@@ -65,9 +73,11 @@ final class PasteService: @unchecked Sendable {
             if !granted {
                 openInputMonitoringSettings()
             }
+            return granted
         } else {
             // 旧版本 macOS 直接打开设置
             openInputMonitoringSettings()
+            return false
         }
     }
 

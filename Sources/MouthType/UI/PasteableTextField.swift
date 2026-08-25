@@ -1,6 +1,10 @@
 import AppKit
 import SwiftUI
 
+// MARK: - Paste-aware NSTextField
+// 在 NSViewRepresentable 中，系统 responder chain 不工作，
+// 所以必须在 performKeyEquivalent 中拦截 Cmd+V/C/X/A 并直接操作 self。
+
 final class PasteAwareTextField: NSTextField {
     var onStringValueChanged: ((String) -> Void)?
 
@@ -9,74 +13,60 @@ final class PasteAwareTextField: NSTextField {
         onStringValueChanged?(stringValue)
     }
 
-    override func keyDown(with event: NSEvent) {
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if modifiers == [.command], let key = event.charactersIgnoringModifiers?.lowercased() {
-            switch key {
-            case "v":
-                pasteFromClipboard()
-                return
-            case "a":
-                currentEditor()?.selectAll(self)
-                return
-            case "c":
-                currentEditor()?.copy(self)
-                return
-            case "x":
-                currentEditor()?.cut(self)
-                return
-            default:
-                break
-            }
-        }
-        super.keyDown(with: event)
-    }
-
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        guard modifiers == [.command], let key = event.charactersIgnoringModifiers?.lowercased() else {
+        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.command],
+              let key = event.charactersIgnoringModifiers?.lowercased()
+        else {
             return super.performKeyEquivalent(with: event)
         }
 
         switch key {
         case "v":
-            pasteFromClipboard()
-            return true
-        case "a":
-            currentEditor()?.selectAll(self)
+            pasteIntoSelf()
             return true
         case "c":
-            currentEditor()?.copy(self)
+            copyFromSelf()
             return true
         case "x":
-            currentEditor()?.cut(self)
+            cutFromSelf()
+            return true
+        case "a":
+            selectAllInSelf()
             return true
         default:
             return super.performKeyEquivalent(with: event)
         }
     }
 
-    private func pasteFromClipboard() {
+    private func pasteIntoSelf() {
         guard let text = NSPasteboard.general.string(forType: .string) else {
             NSSound.beep()
             return
         }
-
-        // 先尝试使用当前编辑器
-        if let editor = currentEditor() as? NSTextView {
-            editor.insertText(text, replacementRange: editor.selectedRange())
-            onStringValueChanged?(editor.string)
-            return
-        }
-
-        // 如果没有编辑器，直接设置值并触发通知
-        let oldString = stringValue
         stringValue = text
-        if oldString != stringValue {
-            onStringValueChanged?(stringValue)
+    }
+
+    private func copyFromSelf() {
+        if let editor = currentEditor(), editor.selectedRange.length > 0 {
+            editor.copy(nil)
+        } else if !stringValue.isEmpty {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(stringValue, forType: .string)
         }
     }
+
+    private func cutFromSelf() {
+        if let editor = currentEditor(), editor.selectedRange.length > 0 {
+            editor.cut(nil)
+        }
+    }
+
+    private func selectAllInSelf() {
+        currentEditor()?.selectAll(self)
+    }
 }
+
+// MARK: - Paste-aware NSSecureTextField
 
 final class PasteAwareSecureTextField: NSSecureTextField {
     var onStringValueChanged: ((String) -> Void)?
@@ -86,49 +76,56 @@ final class PasteAwareSecureTextField: NSSecureTextField {
         onStringValueChanged?(stringValue)
     }
 
-    override func keyDown(with event: NSEvent) {
-        if handlePasteShortcut(event) {
-            return
-        }
-        super.keyDown(with: event)
-    }
-
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        if handlePasteShortcut(event) {
+        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.command],
+              let key = event.charactersIgnoringModifiers?.lowercased()
+        else {
+            return super.performKeyEquivalent(with: event)
+        }
+
+        switch key {
+        case "v":
+            pasteIntoSelf()
             return true
+        case "c":
+            copyFromSelf()
+            return true
+        case "x":
+            cutFromSelf()
+            return true
+        case "a":
+            selectAllInSelf()
+            return true
+        default:
+            return super.performKeyEquivalent(with: event)
         }
-        return super.performKeyEquivalent(with: event)
     }
 
-    private func handlePasteShortcut(_ event: NSEvent) -> Bool {
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        guard modifiers == [.command], event.charactersIgnoringModifiers?.lowercased() == "v" else {
-            return false
-        }
-
-        pasteFromClipboard()
-        return true
-    }
-
-    private func pasteFromClipboard() {
+    private func pasteIntoSelf() {
         guard let text = NSPasteboard.general.string(forType: .string) else {
             NSSound.beep()
             return
         }
-
-        // 先尝试使用当前编辑器
-        if let editor = currentEditor() as? NSTextView {
-            editor.insertText(text, replacementRange: editor.selectedRange())
-            onStringValueChanged?(editor.string)
-            return
-        }
-
-        // 如果没有编辑器，直接设置值并触发通知
-        let oldString = stringValue
         stringValue = text
-        if oldString != stringValue {
-            onStringValueChanged?(stringValue)
+    }
+
+    private func copyFromSelf() {
+        if let editor = currentEditor(), editor.selectedRange.length > 0 {
+            editor.copy(nil)
+        } else if !stringValue.isEmpty {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(stringValue, forType: .string)
         }
+    }
+
+    private func cutFromSelf() {
+        if let editor = currentEditor(), editor.selectedRange.length > 0 {
+            editor.cut(nil)
+        }
+    }
+
+    private func selectAllInSelf() {
+        currentEditor()?.selectAll(self)
     }
 }
 

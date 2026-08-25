@@ -590,9 +590,9 @@ struct UITestConfiguration {
     var isModelDownloaded: Bool = false
     var isModelDownloading: Bool = false
     var modelDownloadProgress: Double?
-    var shouldShowFloatingCapsuleWindow: Bool = false
-    var shouldCreateStatusItem: Bool = false
-    var shouldInstallHotkeyMonitor: Bool = false
+    var shouldShowFloatingCapsuleWindow: Bool = true  // 默认显示悬浮胶囊
+    var shouldCreateStatusItem: Bool = true  // 默认创建菜单栏
+    var shouldInstallHotkeyMonitor: Bool = true  // 默认安装热键监听
     var shouldShowOnboarding: Bool = false
     var currentModelSizeText: String = ""
     var accessibilityGranted: Bool = false

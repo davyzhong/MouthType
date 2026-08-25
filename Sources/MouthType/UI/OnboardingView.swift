@@ -278,11 +278,29 @@ struct AIStepView: View {
 
             if aiEnabled {
                 VStack(alignment: .leading, spacing: 12) {
-                    PasteableTextField(placeholder: "模型名称", text: $aiModelName)
+                    TextField("模型名称", text: $aiModelName)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("onboarding.ai.modelField")
 
-                    PasteableTextField(placeholder: "请求地址", text: $aiEndpoint)
+                    TextField("请求地址", text: $aiEndpoint)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("onboarding.ai.endpointField")
 
-                    PasteableSecureField(placeholder: "API 密钥", text: $aiApiKey)
+                    HStack(spacing: 8) {
+                        SecureField("API 密钥", text: $aiApiKey)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityIdentifier("onboarding.ai.apiKeyField")
+
+                        Button("粘贴") {
+                            if let clipboard = NSPasteboard.general.string(forType: .string) {
+                                aiApiKey = clipboard
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
 
                     Text("AI 后处理可以优化标点、移除语气词、整理格式")
                         .font(.caption)

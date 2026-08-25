@@ -79,7 +79,7 @@ preload/               # WebView 桥接模块
 6. TextInsertionService 插入文本到活跃应用
 
 ### 安全策略
-- API Key 存储在 Keychain，永不暴露给 WebView
+- API Key 存储在本地权限受限配置文件 `~/.mouthtype/config.json`（目录权限 `0700`，文件权限 `0600`），永不暴露给 WebView
 - 云 API 调用通过主进程代理
 - 日志自动脱敏敏感数据
 - 敏感应用策略控制隐私级别

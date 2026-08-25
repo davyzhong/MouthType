@@ -2,63 +2,56 @@ import XCTest
 @testable import MouthType
 
 final class StreamingASREngineTests: XCTestCase {
-    func testStreamingASREngineInitialization() {
+    func testStreamingASREngineInitialization() async {
         let engine = StreamingASREngine()
         XCTAssertNotNil(engine)
     }
 
-    func testStreamingASREngineStartStop() {
+    func testStreamingASREngineStartStop() async {
         let engine = StreamingASREngine()
-        let expectation = self.expectation(description: "callback received")
-        
-        engine.start { segment in
-            // Callback may or may not be called
-            expectation.fulfill()
+
+        await engine.start { segment in
+            XCTFail("Start/stop without audio should not emit a segment: \(segment)")
         }
-        
-        engine.stop()
-        XCTAssertNotNil(engine)
-        
-        // Fulfill expectation manually if not called
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            expectation.fulfill()
-        }
-        
-        waitForExpectations(timeout: 1.0)
+
+        await engine.stop()
+        let info = await engine.debugInfo
+        XCTAssertTrue(info.contains("Running: false"))
     }
 
-    func testStreamingASREngineReset() {
+    func testStreamingASREngineReset() async {
         let engine = StreamingASREngine()
-        engine.start { _ in }
-        engine.reset()
-        engine.stop()
+        await engine.start { _ in }
+        await engine.reset()
+        await engine.stop()
         XCTAssertNotNil(engine)
     }
 
-    func testStreamingASREngineAppendEmptyData() {
+    func testStreamingASREngineAppendEmptyData() async {
         let engine = StreamingASREngine()
-        engine.start { _ in }
+        await engine.start { _ in }
         let emptyData = Data()
-        engine.appendAudio(emptyData)
-        engine.stop()
+        await engine.appendAudio(emptyData)
+        await engine.stop()
         XCTAssertNotNil(engine)
     }
 
-    func testStreamingASREngineAppendSmallData() {
+    func testStreamingASREngineAppendSmallData() async {
         let engine = StreamingASREngine()
-        engine.start { _ in }
+        await engine.start { _ in }
         // Create minimal PCM data (4 bytes = 2 Int16 samples)
         let smallData = Data([0x00, 0x01, 0x02, 0x03])
-        engine.appendAudio(smallData)
-        engine.stop()
+        await engine.appendAudio(smallData)
+        await engine.stop()
         XCTAssertNotNil(engine)
     }
 
-    func testStreamingASREngineAppendLargeData() {
+    func testStreamingASREngineAppendLargeData() async {
         let engine = StreamingASREngine()
         let expectation = self.expectation(description: "segment received")
+        expectation.assertForOverFulfill = false
         
-        engine.start { segment in
+        await engine.start { segment in
             if !segment.text.isEmpty {
                 expectation.fulfill()
             }
@@ -68,48 +61,43 @@ final class StreamingASREngineTests: XCTestCase {
         // 32000 bytes = 16000 Int16 samples = 1 second @ 16kHz
         var pcmData = Data(capacity: 32000)
         for _ in 0..<16000 {
-            let sample: Int16 = Int16.random(in: -1000...1000)
+            let sample: Int16 = 32767
             pcmData.append(contentsOf: withUnsafeBytes(of: sample.littleEndian) { Array($0) })
         }
-        engine.appendAudio(pcmData)
-        
-        // Fulfill manually if no segment produced
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            expectation.fulfill()
-        }
-        
-        waitForExpectations(timeout: 1.0)
-        engine.stop()
+        await engine.appendAudio(pcmData)
+
+        await fulfillment(of: [expectation], timeout: 1.0)
+        await engine.stop()
     }
 
-    func testStreamingASREngineFlush() {
+    func testStreamingASREngineFlush() async {
         let engine = StreamingASREngine()
-        engine.start { _ in }
+        await engine.start { _ in }
         
-        let result = engine.flush()
+        let result = await engine.flush()
         // flush returns nil when buffer is empty
         XCTAssertNil(result)
         
-        engine.stop()
+        await engine.stop()
     }
 
-    func testStreamingASREngineMultipleStartStop() {
+    func testStreamingASREngineMultipleStartStop() async {
         let engine = StreamingASREngine()
         for _ in 0..<3 {
-            engine.start { _ in }
-            engine.stop()
+            await engine.start { _ in }
+            await engine.stop()
         }
         XCTAssertNotNil(engine)
     }
 
-    func testStreamingASREngineDebugInfo() {
+    func testStreamingASREngineDebugInfo() async {
         let engine = StreamingASREngine()
-        let info = engine.debugInfo
+        let info = await engine.debugInfo
         XCTAssertTrue(info.contains("StreamingASREngine"))
         XCTAssertTrue(info.contains("Running:"))
     }
 
-    func testStreamingASREngineCustomConfig() {
+    func testStreamingASREngineCustomConfig() async {
         var config = StreamingASREngine.Config()
         config.windowSizeMs = 200
         config.windowStepMs = 50
@@ -118,7 +106,7 @@ final class StreamingASREngineTests: XCTestCase {
         let engine = StreamingASREngine(config: config)
         XCTAssertNotNil(engine)
         
-        engine.start { _ in }
-        engine.stop()
+        await engine.start { _ in }
+        await engine.stop()
     }
 }

@@ -5,7 +5,7 @@ import os
 private let hotkeyLog = RedactedLogger(subsystem: "com.mouthtype", category: "HotkeyMonitor")
 
 @MainActor
-final class HotkeyMonitor: @unchecked Sendable {
+final class HotkeyMonitor {
     private final class EventTapContext {
         weak var monitor: HotkeyMonitor?
 

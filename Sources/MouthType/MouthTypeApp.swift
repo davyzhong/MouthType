@@ -15,6 +15,7 @@ struct MouthTypeApp: App {
     }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState.shared
     private let uiTestConfiguration = UITestConfiguration.current

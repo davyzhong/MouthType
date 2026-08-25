@@ -1,4 +1,3 @@
-import Security
 import XCTest
 @testable import MouthType
 
@@ -6,47 +5,42 @@ import XCTest
 
 final class AppSettingsTests: XCTestCase {
     private var suiteName = ""
-    private var keychainService = ""
     private var defaults: UserDefaults!
     private var appSettings: AppSettings!
+    private var testConfigStore: ConfigFileStore!
 
     override func setUp() {
         super.setUp()
         suiteName = "AppSettingsTests.\(UUID().uuidString)"
-        keychainService = "com.mouthtype.tests.\(suiteName)"
         defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
-        appSettings = AppSettings(defaults: defaults, keychainService: keychainService)
+
+        // 创建测试专用的临时配置文件
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mouthtype_tests", isDirectory: true)
+        let configURL = tempDir
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent("config.json")
+
+        try? FileManager.default.createDirectory(
+            at: configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        testConfigStore = ConfigFileStore(configURL: configURL)
+        appSettings = AppSettings(defaults: defaults, configStore: testConfigStore)
     }
 
     override func tearDown() {
         appSettings.aiApiKey = ""
         appSettings.bailianApiKey = ""
+        testConfigStore?.clear()
         appSettings = nil
+        testConfigStore = nil
         defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
         suiteName = ""
-        keychainService = ""
         super.tearDown()
-    }
-
-    private func keychainString(forKey key: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: key,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecReturnData as String: true,
-        ]
-
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess,
-              let data = item as? Data,
-              let value = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-        return value
     }
 
     // MARK: - Bailian WebSocket URL Tests
@@ -159,33 +153,42 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertNil(settings.validatedAIEndpoint, "应拒绝 HTTP 方案")
     }
 
-    // MARK: - API Key Keychain Tests
+    // MARK: - API Key Config File Tests
 
-    func testAIAPIKeyPersistsInKeychain() {
+    func testAIAPIKeyPersistsInConfigFile() {
         let settings = appSettings!
-        settings.aiApiKey = "sk-keychain-test"
 
-        XCTAssertEqual(settings.aiApiKey, "sk-keychain-test")
-        XCTAssertEqual(keychainString(forKey: "aiApiKey"), "sk-keychain-test")
-        XCTAssertNil(defaults.string(forKey: "aiApiKey"))
+        // 设置 API Key
+        settings.aiApiKey = "sk-config-test"
+
+        // 验证可以读取回来
+        XCTAssertEqual(settings.aiApiKey, "sk-config-test")
+
+        // 验证配置文件中已保存
+        XCTAssertEqual(testConfigStore.getAPIKey(for: .ai), "sk-config-test")
     }
 
-    func testClearingBailianAPIKeyRemovesKeychainValue() {
+    func testClearingBailianAPIKeyRemovesConfigValue() {
         let settings = appSettings!
+
+        // 设置后清除
         settings.bailianApiKey = "bailian-secret"
         settings.bailianApiKey = ""
 
+        // 验证已清除
         XCTAssertEqual(settings.bailianApiKey, "")
-        XCTAssertNil(keychainString(forKey: "bailianApiKey"))
+
+        // 验证配置文件中已清除
+        XCTAssertNil(testConfigStore.getAPIKey(for: .bailian))
     }
 
-    func testLegacyAIAPIKeyMigratesFromUserDefaultsToKeychain() {
+    func testLegacyAIAPIKeyMigrationNotApplicable() {
+        // 使用配置文件后，不再有从 UserDefaults 到 KeyChain 的迁移
         let settings = appSettings!
         defaults.set("legacy-ai-key", forKey: "aiApiKey")
 
-        XCTAssertEqual(settings.aiApiKey, "legacy-ai-key")
-        XCTAssertEqual(keychainString(forKey: "aiApiKey"), "legacy-ai-key")
-        XCTAssertNil(defaults.string(forKey: "aiApiKey"))
+        // 新实现从配置文件读取，而不是 UserDefaults
+        XCTAssertEqual(settings.aiApiKey, "")
     }
 
     func testCloudFallbackHotwordsDisabledByDefault() {
@@ -280,25 +283,39 @@ final class AppStateTests: XCTestCase {
 final class AIProviderTests: XCTestCase {
     private var suiteName = ""
     private var defaults: UserDefaults!
-    private var keychainService = ""
     private var appSettings: AppSettings!
+    private var testConfigStore: ConfigFileStore!
 
     override func setUp() {
         super.setUp()
         suiteName = "AIProviderTests.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
-        keychainService = "com.mouthtype.tests.ai.\(suiteName)"
-        appSettings = AppSettings(defaults: defaults, keychainService: keychainService)
+
+        // 创建测试专用的临时配置文件
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mouthtype_tests", isDirectory: true)
+        let configURL = tempDir
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent("config.json")
+
+        try? FileManager.default.createDirectory(
+            at: configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        testConfigStore = ConfigFileStore(configURL: configURL)
+        appSettings = AppSettings(defaults: defaults, configStore: testConfigStore)
     }
 
     override func tearDown() {
         appSettings.aiApiKey = ""
         appSettings = nil
+        testConfigStore?.clear()
+        testConfigStore = nil
         defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
         suiteName = ""
-        keychainService = ""
         super.tearDown()
     }
 
@@ -313,7 +330,7 @@ final class AIProviderTests: XCTestCase {
         settings.bailianApiKey = "sk-test-key"
 
         var provider = BailianAIProvider(settings: settings)
-        XCTAssertTrue(provider.isAvailable, "有效配置应可用 (bailianApiKey=\(settings.bailianApiKey), endpoint=\(settings.aiChatCompletionsURL?.absoluteString ?? "nil"))")
+        XCTAssertTrue(provider.isAvailable, "有效配置应可用 (bailianApiKey=\(settings.bailianApiKey.isEmpty ? "空" : "已设置"), endpoint=\(settings.aiChatCompletionsURL?.absoluteString ?? "nil"))")
 
         // 测试用例：无 API Key 不可用
         settings.bailianApiKey = ""
@@ -329,8 +346,6 @@ final class AIProviderTests: XCTestCase {
 
     func testBailianAIProviderRejectsInvalidEndpoints() {
         let settings = appSettings!
-        let keychain = SystemKeychainStore()
-        _ = keychain.setString("sk-test-key", forKey: "bailian_api_key", service: "MouthType.APIKeys")
         settings.aiApiKey = "sk-test-key"
 
         let invalidEndpoints: [(String, String)] = [

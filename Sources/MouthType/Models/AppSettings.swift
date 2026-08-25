@@ -1,68 +1,6 @@
 import CoreGraphics
 import Foundation
-import Security
 import os
-
-protocol KeychainStore: Sendable {
-    func string(forKey key: String, service: String) -> String?
-    func setString(_ value: String, forKey key: String, service: String) -> Bool
-    func deleteValue(forKey key: String, service: String)
-}
-
-struct SystemKeychainStore: KeychainStore {
-    func string(forKey key: String, service: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecReturnData as String: true,
-        ]
-
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status != errSecItemNotFound else {
-            return nil
-        }
-        guard status == errSecSuccess,
-              let data = item as? Data,
-              let value = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-        return value
-    }
-
-    func setString(_ value: String, forKey key: String, service: String) -> Bool {
-        guard let data = value.data(using: .utf8) else {
-            return false
-        }
-
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-        ]
-        let attributes = [kSecValueData as String: data]
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-
-        if status == errSecItemNotFound {
-            var newItem = query
-            newItem[kSecValueData as String] = data
-            return SecItemAdd(newItem as CFDictionary, nil) == errSecSuccess
-        }
-
-        return status == errSecSuccess
-    }
-
-    func deleteValue(forKey key: String, service: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-        ]
-        SecItemDelete(query as CFDictionary)
-    }
-}
 
 enum ActivationHotkey: String, CaseIterable, Identifiable {
     case rightOption
@@ -104,13 +42,10 @@ enum ActivationHotkey: String, CaseIterable, Identifiable {
 
 /// 应用设置 - 单例模式
 /// 注意：使用 @unchecked Sendable 是因为：
-/// - 所有可变状态 (UserDefaults, Keychain) 是线程安全的
+/// - 所有可变状态通过 UserDefaults 和配置文件存储，都是线程安全的
 /// - 单例实例在应用生命周期内不会被修改
-/// - 所有属性都是 let 或 thread-safe 的 UserDefaults/Keychain 操作
 final class AppSettings: @unchecked Sendable {
     static let shared = AppSettings()
-    static let secretStorageDidFailNotification = Notification.Name("AppSettings.secretStorageDidFail")
-    static let secretStorageFailedKeyUserInfoKey = "key"
 
     private let defaults: UserDefaults
     private let bailianAllowedHost = "dashscope.aliyuncs.com"
@@ -169,23 +104,20 @@ final class AppSettings: @unchecked Sendable {
         let internalSuffixes = [".internal", ".intranet", ".corp", ".localdomain"]
         return internalSuffixes.contains { normalizedHost.hasSuffix($0) }
     }
-    private let keychainService: String
-    private let keychainStore: any KeychainStore
+    private let logger = Logger(subsystem: "com.mouthtype", category: "AppSettings")
 
     /// Whisper 二进制文件预期 SHA256 哈希（仅用于 Bundled 二进制）
     /// Homebrew 安装的版本哈希不同，不应验证
     let expectedWhisperBinaryHash: String? = nil // 设置为 nil 禁用验证，或填入实际哈希值
 
-    private let logger = Logger(subsystem: "com.mouthtype", category: "AppSettings")
+    private let configStore: ConfigFileStore
 
     init(
         defaults: UserDefaults = .standard,
-        keychainService: String = "com.mouthtype.app.settings",
-        keychainStore: any KeychainStore = SystemKeychainStore()
+        configStore: ConfigFileStore = .shared
     ) {
         self.defaults = defaults
-        self.keychainService = keychainService
-        self.keychainStore = keychainStore
+        self.configStore = configStore
     }
 
     // MARK: - ASR
@@ -240,8 +172,8 @@ final class AppSettings: @unchecked Sendable {
     // MARK: - AI
 
     var aiApiKey: String {
-        get { secureString(forKey: "aiApiKey") ?? "" }
-        set { setSecureString(newValue, forKey: "aiApiKey") }
+        get { configStore.getAPIKey(for: .ai) ?? "" }
+        set { _ = configStore.setAPIKey(newValue, for: .ai) }
     }
 
     var aiEnabled: Bool {
@@ -453,8 +385,15 @@ final class AppSettings: @unchecked Sendable {
     // MARK: - Bailian
 
     var bailianApiKey: String {
-        get { secureString(forKey: "bailianApiKey") ?? "" }
-        set { setSecureString(newValue, forKey: "bailianApiKey") }
+        get {
+            let key = configStore.getAPIKey(for: .bailian) ?? ""
+            logger.info("AppSettings.get bailianApiKey: \(key.isEmpty ? "空" : "已设置")")
+            return key
+        }
+        set {
+            logger.info("AppSettings.set bailianApiKey: \(newValue.isEmpty ? "空" : "已设置")")
+            _ = configStore.setAPIKey(newValue, for: .bailian)
+        }
     }
 
     var bailianEndpoint: String {
@@ -498,79 +437,6 @@ final class AppSettings: @unchecked Sendable {
         }
 
         return components.url
-    }
-
-    private func secureString(forKey key: String) -> String? {
-        if let value = keychainStore.string(forKey: key, service: keychainService) {
-            return value.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-
-        guard let legacyValue = defaults.string(forKey: key)?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !legacyValue.isEmpty else {
-            return nil
-        }
-
-        // 原子迁移：先尝试写入 Keychain，成功后再删除 UserDefaults
-        let migrated = setKeychainString(legacyValue, forKey: key)
-        if migrated {
-            defaults.removeObject(forKey: key)  // 成功后删除旧值
-            return legacyValue
-        }
-
-        // 迁移失败：保留 UserDefaults 值，仅记录警告
-        postSecretStorageFailure(forKey: key)
-        logger.warning("Keychain 写入失败，保留 legacy 值（未删除）：key=\(key)")
-        return legacyValue  // 返回旧值以供继续使用
-    }
-
-    private func setSecureString(_ value: String, forKey key: String) {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !trimmed.isEmpty else {
-            defaults.removeObject(forKey: key)
-            deleteKeychainValue(forKey: key)
-            return
-        }
-
-        defaults.removeObject(forKey: key)
-        let success = keychainStore.setString(trimmed, forKey: key, service: keychainService)
-        if !success {
-            postSecretStorageFailure(forKey: key)
-            logger.error("设置安全字符串失败，未持久化到不安全存储：key=\(key)")
-        }
-    }
-
-    private func postSecretStorageFailure(forKey key: String) {
-        NotificationCenter.default.post(
-            name: Self.secretStorageDidFailNotification,
-            object: self,
-            userInfo: [Self.secretStorageFailedKeyUserInfoKey: key]
-        )
-    }
-
-    private func setKeychainString(_ value: String, forKey key: String) -> Bool {
-        guard value.data(using: .utf8) != nil else {
-            logger.error("Keychain 写入失败：无法将值转换为 Data，key=\(key)")
-            return false
-        }
-
-        let success = keychainStore.setString(value, forKey: key, service: keychainService)
-        if !success {
-            logger.error("Keychain 写入失败：key=\(key)")
-        }
-        return success
-    }
-
-    private func deleteKeychainValue(forKey key: String) {
-        keychainStore.deleteValue(forKey: key, service: keychainService)
-    }
-
-    private func keychainQuery(forKey key: String) -> [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: key,
-        ]
     }
 
     private func normalizedBailianEndpointComponents() -> URLComponents? {

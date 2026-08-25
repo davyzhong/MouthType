@@ -173,38 +173,38 @@ final class TranscriptStabilizerTests: XCTestCase {
 
     func testCallbacks() {
         // 冻结文本回调
-        var frozenCallbackText: String?
+        let frozenCallbackText = LockedValue<String?>(nil)
         stabilizer.onFrozenTextAdded = { text in
-            frozenCallbackText = text
+            frozenCallbackText.set(text)
         }
 
         let frozenSegment = createASRSegment(text: "Frozen text", startTime: 0, endTime: 0.5, isFinal: true)
         stabilizer.append(frozenSegment, referenceTime: 3.0)
-        XCTAssertEqual(frozenCallbackText, "Frozen text")
+        XCTAssertEqual(frozenCallbackText.value, "Frozen text")
 
         // 稳定文本更新回调
-        var stableCallbackText: String?
+        let stableCallbackText = LockedValue<String?>(nil)
         stabilizer.onStableTextUpdated = { text in
-            stableCallbackText = text
+            stableCallbackText.set(text)
         }
 
         stabilizer.reset()
         let stableSegment = createASRSegment(text: "Stable", startTime: 0, endTime: 0.5, isFinal: true)
         stabilizer.append(stableSegment, referenceTime: 1.0)
-        XCTAssertNotNil(stableCallbackText)
+        XCTAssertNotNil(stableCallbackText.value)
 
         // 重复文本不触发回调
         stabilizer.reset()
-        var callCount = 0
+        let callCount = LockedValue(0)
         stabilizer.onFrozenTextAdded = { _ in
-            callCount += 1
+            callCount.update { $0 += 1 }
         }
 
         let segment1 = createASRSegment(text: "Same", startTime: 0, endTime: 0.5, isFinal: true)
         stabilizer.append(segment1, referenceTime: 3.0)
         let segment2 = createASRSegment(text: "Different", startTime: 0.5, endTime: 1.0, isFinal: true)
         stabilizer.append(segment2, referenceTime: 3.5)
-        XCTAssertEqual(callCount, 2)
+        XCTAssertEqual(callCount.value, 2)
     }
 
     // MARK: - Debug Info Tests
@@ -268,5 +268,30 @@ final class TranscriptStabilizerTests: XCTestCase {
             startTime: startTime,
             endTime: endTime
         )
+    }
+}
+
+private final class LockedValue<Value>: @unchecked Sendable {
+    private var storedValue: Value
+    private let lock = NSLock()
+
+    init(_ value: Value) {
+        self.storedValue = value
+    }
+
+    var value: Value {
+        lock.withLock { storedValue }
+    }
+
+    func set(_ value: Value) {
+        lock.withLock {
+            storedValue = value
+        }
+    }
+
+    func update(_ transform: (inout Value) -> Void) {
+        lock.withLock {
+            transform(&storedValue)
+        }
     }
 }

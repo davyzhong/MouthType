@@ -10,6 +10,7 @@ enum DictationState: Equatable {
     case error(String)
 }
 
+@MainActor
 @Observable
 final class AppState {
     static let shared = AppState()

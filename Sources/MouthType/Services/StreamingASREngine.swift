@@ -11,7 +11,7 @@ private let streamingLog = Logger(subsystem: "com.mouthtype", category: "Streami
 /// - 部分结果：每个窗口立即返回转写，不等待完整语句
 ///
 /// Thread safety: Designed for async/await usage with proper isolation
-final class StreamingASREngine: @unchecked Sendable {
+actor StreamingASREngine {
     // MARK: - Configuration
 
     struct Config: Sendable {
@@ -35,7 +35,6 @@ final class StreamingASREngine: @unchecked Sendable {
 
     private var config: Config
     private var audioBuffer: [Float] = []
-    private var processThread: Thread?
     private var isRunning = false
     private var shutdownRequested = false
 

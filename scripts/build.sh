@@ -72,35 +72,36 @@ if [[ -d "$SQLITE_BUNDLE" ]]; then
     cp -R "$SQLITE_BUNDLE" "$APP_BUNDLE/Contents/Resources/SQLite.swift_SQLite.bundle"
 fi
 
-# Copy models (release mode only)
-if [[ "$BUILD_CONFIG" == "release" ]]; then
-    echo "==> Copying models to bundle..."
+# Copy models
+echo "==> Copying models to bundle..."
 
-    # Whisper models
-    WHISPER_MODEL_SOURCE="$ROOT_DIR/Resources/whisper-models"
-    WHISPER_MODEL_DEST="$APP_BUNDLE/Contents/Resources/whisper-models"
-    if [[ -d "$WHISPER_MODEL_SOURCE" ]]; then
-        mkdir -p "$WHISPER_MODEL_DEST"
-        cp -R "$WHISPER_MODEL_SOURCE"/* "$WHISPER_MODEL_DEST/" 2>/dev/null || true
-    fi
-
-    # SenseVoice models
-    SENSEVOICE_MODEL_SOURCE="$ROOT_DIR/Resources/sensevoice-models"
-    SENSEVOICE_MODEL_DEST="$APP_BUNDLE/Contents/Resources/sensevoice-models"
-    if [[ -d "$SENSEVOICE_MODEL_SOURCE" ]]; then
-        mkdir -p "$SENSEVOICE_MODEL_DEST"
-        cp -R "$SENSEVOICE_MODEL_SOURCE"/* "$SENSEVOICE_MODEL_DEST/" 2>/dev/null || true
-    fi
+# Whisper models
+WHISPER_MODEL_SOURCE="$ROOT_DIR/Resources/whisper-models"
+WHISPER_MODEL_DEST="$APP_BUNDLE/Contents/Resources/whisper-models"
+if [[ -d "$WHISPER_MODEL_SOURCE" ]]; then
+    mkdir -p "$WHISPER_MODEL_DEST"
+    cp -R "$WHISPER_MODEL_SOURCE"/* "$WHISPER_MODEL_DEST/" 2>/dev/null || true
 fi
 
-# Sign with entitlements (release) or ad-hoc (debug)
-if [[ "$BUILD_CONFIG" == "release" ]]; then
-    echo "==> Signing with entitlements..."
-    codesign --force --deep --sign - --entitlements "$ENTITLEMENTS" "$APP_BUNDLE"
-else
-    echo "==> Ad-hoc signing..."
-    codesign --force --deep --sign - "$APP_BUNDLE"
+# SenseVoice models
+SENSEVOICE_MODEL_SOURCE="$ROOT_DIR/Resources/sensevoice-models"
+SENSEVOICE_MODEL_DEST="$APP_BUNDLE/Contents/Resources/sensevoice-models"
+if [[ -d "$SENSEVOICE_MODEL_SOURCE" ]]; then
+    mkdir -p "$SENSEVOICE_MODEL_DEST"
+    cp -R "$SENSEVOICE_MODEL_SOURCE"/* "$SENSEVOICE_MODEL_DEST/" 2>/dev/null || true
 fi
+
+# Paraformer models
+PARAFORMER_MODEL_SOURCE="$ROOT_DIR/Resources/paraformer-models"
+PARAFORMER_MODEL_DEST="$APP_BUNDLE/Contents/Resources/paraformer-models"
+if [[ -d "$PARAFORMER_MODEL_SOURCE" ]]; then
+    mkdir -p "$PARAFORMER_MODEL_DEST"
+    cp -R "$PARAFORMER_MODEL_SOURCE"/* "$PARAFORMER_MODEL_DEST/" 2>/dev/null || true
+fi
+
+# Sign with entitlements
+echo "==> Signing with entitlements..."
+codesign --force --deep --sign - --entitlements "$ENTITLEMENTS" "$APP_BUNDLE"
 
 # Verify signature
 echo "==> Verifying signature..."
@@ -123,3 +124,15 @@ echo ""
 # Print signature summary
 echo "==> Signature summary:"
 codesign -dv --verbose=4 "$APP_BUNDLE" 2>&1 | grep -E 'Identifier=|Signature=|Info.plist=' || true
+
+# Copy whisper-cli if available
+WHISPER_CLI="/opt/homebrew/bin/whisper-cli"
+if [[ -x "$WHISPER_CLI" ]]; then
+    echo "==> Copying whisper-cli..."
+    mkdir -p "$APP_BUNDLE/Contents/Resources/bin"
+    cp "$WHISPER_CLI" "$APP_BUNDLE/Contents/Resources/bin/whisper-cli"
+    chmod +x "$APP_BUNDLE/Contents/Resources/bin/whisper-cli"
+    
+    # Re-sign after copying
+    codesign --force --deep --sign - --entitlements "$ENTITLEMENTS" "$APP_BUNDLE"
+fi

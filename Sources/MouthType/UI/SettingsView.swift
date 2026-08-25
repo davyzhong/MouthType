@@ -105,9 +105,27 @@ struct SettingsView: View {
         permissionRefresh += 1
     }
 
-    private func pasteFromClipboard(into binding: Binding<String>) {
-        if let text = NSPasteboard.general.string(forType: .string) {
-            binding.wrappedValue = text
+    private func openAccessibilitySettings() {
+        PasteService.openAccessibilitySettings()
+    }
+
+    private func openInputMonitoringSettings() {
+        PasteService.openInputMonitoringSettings()
+    }
+
+    private func requestAccessibilityPermission() {
+        PasteService.promptAccessibility()
+        // 延迟刷新，给用户时间去系统设置中操作
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.refreshPermissionStatus()
+        }
+    }
+
+    private func requestInputMonitoringPermission() {
+        PasteService.promptInputMonitoring()
+        // 延迟刷新，给用户时间去系统设置中操作
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.refreshPermissionStatus()
         }
     }
 
@@ -189,13 +207,12 @@ struct SettingsView: View {
 
                 Section("百炼云端（本地不可用时自动回退）") {
                     HStack(spacing: 8) {
-                        PasteableSecureField(placeholder: "API 密钥", text: $bailianApiKey, accessibilityIdentifier: "settings.bailianApiKeyField")
-                            .frame(height: 22)
-                        Button("粘贴") {
-                            pasteFromClipboard(into: $bailianApiKey)
-                        }
-                        .controlSize(.small)
-                        .accessibilityIdentifier("settings.bailianApiKeyPasteButton")
+                        PasteableSecureField(
+                            placeholder: "API 密钥",
+                            text: $bailianApiKey,
+                            accessibilityIdentifier: "settings.bailianApiKeyField"
+                        )
+                        .frame(height: 22)
                     }
 
                     if !bailianApiKey.isEmpty {
@@ -211,13 +228,12 @@ struct SettingsView: View {
 
                 Section("请求地址") {
                     HStack(spacing: 8) {
-                        PasteableTextField(placeholder: "wss://...", text: $bailianEndpoint, accessibilityIdentifier: "settings.bailianEndpointField")
-                            .frame(height: 22)
-                        Button("粘贴") {
-                            pasteFromClipboard(into: $bailianEndpoint)
-                        }
-                        .controlSize(.small)
-                        .accessibilityIdentifier("settings.bailianEndpointPasteButton")
+                        PasteableTextField(
+                            placeholder: "wss://...",
+                            text: $bailianEndpoint,
+                            accessibilityIdentifier: "settings.bailianEndpointField"
+                        )
+                        .frame(height: 22)
                     }
                     Text("用于百炼流式 ASR 的 WebSocket 地址；当前听写链路仅在本地引擎不可用时使用该回退通道。")
                         .font(.caption)
@@ -253,22 +269,20 @@ struct SettingsView: View {
 
                     HStack(spacing: 8) {
                         Button("打开辅助功能设置") {
-                            PasteService.openAccessibilitySettings()
+                            openAccessibilitySettings()
                         }
                         Button("打开输入监控设置") {
-                            PasteService.openInputMonitoringSettings()
+                            openInputMonitoringSettings()
                         }
                     }
 
                     HStack(spacing: 8) {
                         Button("请求辅助功能权限") {
-                            PasteService.promptAccessibility()
-                            refreshPermissionStatus()
+                            requestAccessibilityPermission()
                         }
                         .accessibilityIdentifier("settings.permissions.requestAccessibilityButton")
                         Button("请求输入监控权限") {
-                            PasteService.promptInputMonitoring()
-                            refreshPermissionStatus()
+                            requestInputMonitoringPermission()
                         }
                         .accessibilityIdentifier("settings.permissions.requestInputMonitoringButton")
                     }
@@ -359,13 +373,12 @@ struct SettingsView: View {
                             Text("模型名称")
                                 .font(.subheadline)
                             HStack(spacing: 8) {
-                                PasteableTextField(placeholder: modelPlaceholder, text: $aiModelName, accessibilityIdentifier: "settings.ai.modelNameField")
-                                    .frame(height: 22)
-                                Button("粘贴") {
-                                    pasteFromClipboard(into: $aiModelName)
-                                }
-                                .controlSize(.small)
-                                .accessibilityIdentifier("settings.ai.modelNamePasteButton")
+                                PasteableTextField(
+                                    placeholder: modelPlaceholder,
+                                    text: $aiModelName,
+                                    accessibilityIdentifier: "settings.ai.modelNameField"
+                                )
+                                .frame(height: 22)
                             }
                             Text(modelSuggestionText)
                                 .font(.caption)
@@ -376,13 +389,12 @@ struct SettingsView: View {
                             Text("请求地址")
                                 .font(.subheadline)
                             HStack(spacing: 8) {
-                                PasteableTextField(placeholder: endpointPlaceholder, text: $aiEndpoint, accessibilityIdentifier: "settings.ai.endpointField")
-                                    .frame(height: 22)
-                                Button("粘贴") {
-                                    pasteFromClipboard(into: $aiEndpoint)
-                                }
-                                .controlSize(.small)
-                                .accessibilityIdentifier("settings.ai.endpointPasteButton")
+                                PasteableTextField(
+                                    placeholder: endpointPlaceholder,
+                                    text: $aiEndpoint,
+                                    accessibilityIdentifier: "settings.ai.endpointField"
+                                )
+                                .frame(height: 22)
                             }
                             Text("OpenAI 兼容模式支持自定义 BaseURL，如 Azure OpenAI、本地部署等。")
                                 .font(.caption)
@@ -393,13 +405,12 @@ struct SettingsView: View {
                             Text("API 密钥")
                                 .font(.subheadline)
                             HStack(spacing: 8) {
-                                PasteableSecureField(placeholder: "API 密钥", text: $aiApiKey, accessibilityIdentifier: "settings.ai.apiKeyField")
-                                    .frame(height: 22)
-                                Button("粘贴") {
-                                    pasteFromClipboard(into: $aiApiKey)
-                                }
-                                .controlSize(.small)
-                                .accessibilityIdentifier("settings.ai.apiKeyPasteButton")
+                                PasteableSecureField(
+                                    placeholder: "API 密钥",
+                                    text: $aiApiKey,
+                                    accessibilityIdentifier: "settings.ai.apiKeyField"
+                                )
+                                .frame(height: 22)
                                 Button(action: testConnection) {
                                     Image(systemName: "checkmark.shield")
                                 }
@@ -442,13 +453,12 @@ struct SettingsView: View {
 
                     Section("Agent") {
                         HStack(spacing: 8) {
-                            PasteableTextField(placeholder: "Agent 名称", text: $agentName, accessibilityIdentifier: "settings.ai.agentNameField")
-                                .frame(height: 22)
-                            Button("粘贴") {
-                                pasteFromClipboard(into: $agentName)
-                            }
-                            .controlSize(.small)
-                            .accessibilityIdentifier("settings.ai.agentNamePasteButton")
+                            PasteableTextField(
+                                placeholder: "Agent 名称",
+                                text: $agentName,
+                                accessibilityIdentifier: "settings.ai.agentNameField"
+                            )
+                            .frame(height: 22)
                         }
                         Text("说出英文唤醒词\"Hey \(agentName)...\"即可向 Agent 发送指令。")
                             .font(.caption)
@@ -562,13 +572,23 @@ struct SettingsView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings.content")
         .onAppear {
-            bailianApiKey = AppSettings.shared.bailianApiKey
-            aiApiKey = AppSettings.shared.aiApiKey
+            // 从 AppSettings 读取配置（使用同步方式确保在 onChange 前完成）
+            let loadedBailianKey = AppSettings.shared.bailianApiKey
+            let loadedAIKey = AppSettings.shared.aiApiKey
+            if !loadedBailianKey.isEmpty {
+                bailianApiKey = loadedBailianKey
+            }
+            if !loadedAIKey.isEmpty {
+                aiApiKey = loadedAIKey
+            }
+            settingsLog.info("SettingsView.onAppear: bailianApiKey=\(bailianApiKey.isEmpty ? "空" : "已设置"), aiApiKey=\(aiApiKey.isEmpty ? "空" : "已设置")")
         }
         .onChange(of: bailianApiKey) { _, newValue in
+            settingsLog.info("SettingsView.onChange: bailianApiKey=\(newValue.isEmpty ? "空" : "已设置")")
             AppSettings.shared.bailianApiKey = newValue
         }
         .onChange(of: aiApiKey) { _, newValue in
+            settingsLog.info("SettingsView.onChange: aiApiKey=\(newValue.isEmpty ? "空" : "已设置")")
             AppSettings.shared.aiApiKey = newValue
         }
         .onChange(of: aiProviderRawValue) { _, _ in
@@ -576,9 +596,10 @@ struct SettingsView: View {
             syncConfigToUI()
         }
         .onDisappear {
-            // Sync any pending edits to Keychain on window close
+            // 确保所有配置在关闭前保存
             AppSettings.shared.bailianApiKey = bailianApiKey
             AppSettings.shared.aiApiKey = aiApiKey
+            settingsLog.info("SettingsView.onDisappear: 已保存配置")
         }
     }
 
