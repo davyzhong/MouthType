@@ -1,6 +1,7 @@
 # Swift/SwiftPM
 .build/
 DerivedData/
+.swiftpm/
 *.xcodeproj/project.xcworkspace/
 *.xcuserdata/
 
