@@ -1,0 +1,16 @@
+{
+  "name": "mouthtype-screenshots",
+  "version": "1.0.0",
+  "private": true,
+  "description": "README 渲染截图自动化（readme-craft v2.2 T18）",
+  "scripts": {
+    "screenshot": "node scripts/screenshot.js",
+    "screenshot:install": "npm install && npx playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
