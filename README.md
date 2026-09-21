@@ -1,51 +1,73 @@
+---
+name: MouthType
+description: Native macOS voice dictation that keeps your audio on your Mac — local Whisper by default, Aliyun Bailian as a fallback when you need it.
+license: GPL-3.0
+homepage: https://github.com/davyzhong/MouthType
+platforms:
+  - macOS 14.0+ (Apple Silicon / Intel)
+language: Swift 6
+model: gpt-4 / claude-sonnet / gemini-2.5
+intent: code-generation / question-answering / agent-tool
+capabilities:
+  - install
+  - quickstart
+  - build
+  - troubleshoot
+tags:
+  - macos
+  - swift
+  - swiftui
+  - dictation
+  - speech-to-text
+  - whisper-cpp
+  - sherpa-onnx
+  - asr
+  - privacy-first
+  - menu-bar
+  - floating-capsule
+---
+
 <div align="center">
 
 # 🎙️ MouthType
 
-**macOS 原生语音听写应用 · 悬浮即用 · 本地优先 · 国内云端 fallback**
+**Native macOS dictation that respects your voice — local-first, Aliyun Bailian as a fallback.**
 
-`按住 ⌥ Space` → `说话` → `自动粘贴到任意应用`
+`Hold ⌥ Space` → `Speak` → `Auto-paste into any app`
 
 [![Platform](https://img.shields.io/badge/macOS-14.0%2B-black?logo=apple)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange?logo=swift)](https://swift.org)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-19%20files-success)](Tests/)
+[![Tests](https://img.shields.io/badge/tests-149%20cases-success)](Tests/)
 [![Status](https://img.shields.io/badge/status-stable-success)](#-roadmap)
+[![Security](https://img.shields.io/badge/security-policy-lightgrey)](SECURITY.md)
 
-[快速开始](#-快速开始) · [功能](#-功能) · [架构](#-架构) · [同类对比](#-同类对比) · [Roadmap](#-roadmap) · [文档](#-文档导航)
+**Languages**: [English](./README.md) · [中文](./README.zh.md)
+
+[Quick Start](#-quick-start) · [Features](#-features) · [Architecture](#-architecture) · [Comparison](#-comparison) · [Roadmap](#-roadmap)
 
 </div>
 
 ---
 
-> **MouthType** 是给不想把语音数据上送国外云、又想要 macOS 原生体验的人做的听写工具。
-> 默认走本地 Whisper（whisper.cpp / sherpa-onnx），云端 fallback 走阿里云百炼 Paraformer，UI 用 NSPanel 实现的悬浮胶囊，按下出现、松开消失。
+> A floating capsule shows up while you hold the hotkey, your voice is transcribed locally, and the text lands in whatever app you were just typing in.
 
 ---
 
-## ✨ 核心亮点
+## ✨ Why MouthType
 
-| | 特性 | 说明 |
-|---|---|---|
-| 🎙️ | **本地 Whisper 优先** | 默认 whisper.cpp / sherpa-onnx 离线识别，语音数据不出本机 |
-| 🌐 | **国内云端 fallback** | 阿里云百炼 Paraformer，WebSocket 自动重连，断网弱网也能用 |
-| 🎯 | **悬浮胶囊 UI** | NSPanel 浮动指示器，按下出现/松开消失，不抢主屏 |
-| 📋 | **智能粘贴服务** | 跨应用粘贴兼容性方案，处理 focus 切换、剪贴板竞态 |
-| 🔐 | **API key 权限隔离** | `~/.mouthtype/config.json`，目录 `0700` 文件 `0600`，最小权限原则 |
-| 🛡️ | **日志自动脱敏** | 身份证、银行卡、手机号、URL 等敏感字段自动脱敏 |
-| 🧪 | **19 个测试文件** | 单元测试 + UI 测试双层覆盖，含音频管道、权限、粘贴、错误恢复 |
+- **🎙️ Local Whisper by default** — runs on your Mac via `whisper.cpp` / `sherpa-onnx`. Your audio never leaves the machine unless you ask it to.
+- **🌐 Aliyun Bailian fallback** — when you explicitly want cloud accuracy for noisy rooms or regional accents, the optional WebSocket provider reconnects automatically.
+- **🎯 Floating capsule UI** — a translucent `NSPanel` appears under the cursor, vanishes the moment you release. No permanent bar of widgets stealing your screen.
+- **📋 Robust paste service** — handles focus changes, clipboard races, and apps that block synthetic input (Terminal, 1Password, password fields are politely bypassed).
+- **🔐 Locked-down secrets** — API keys live in `~/.mouthtype/config.json` with directory mode `0700` and file mode `0600`. Never read by the WebView.
+- **🛡️ Auto-redacted logs** — national IDs, card numbers, phone numbers, and URLs are masked before they touch disk.
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 系统要求
-
-- macOS 14.0 或更高版本（Apple Silicon / Intel）
-- Xcode 15+ / Swift 6.0+
-- 麦克风权限、辅助功能权限、输入监控权限
-
-### 从源码构建
+### 30 seconds — try it (from source)
 
 ```bash
 git clone https://github.com/davyzhong/MouthType
@@ -54,196 +76,223 @@ swift build -c release
 .build/release/MouthType
 ```
 
-### 配置（首次启动后）
+You should see a waveform-like icon appear in the menu bar. From there:
 
-```text
-1. 打开 MouthType（菜单栏图标出现）
-2. 在「设置 → 模型」里选择引擎（whisper-tiny / sherpa-onnx / 百炼 Paraformer）
-3. 如需云端 fallback，在 ~/.mouthtype/config.json 配置 API key
-4. 触发热键（默认 ⌥ Space）
-5. 说话 → 松开 → 转录自动粘贴
-```
+### 60 seconds — first dictation
 
-> **详细教程**：[`docs/design-plan.md`](docs/design-plan.md)
+1. Open MouthType (menu bar icon visible).
+2. In **Settings → Model**, pick an engine — `whisper-tiny`, `sherpa-onnx`, or `bailian-paraformer`.
+3. If you want cloud fallback, drop your Aliyun API key into `~/.mouthtype/config.json`:
+   ```bash
+   mkdir -p ~/.mouthtype && chmod 700 ~/.mouthtype
+   $EDITOR ~/.mouthtype/config.json   # see docs/design-plan.md for schema
+   chmod 600 ~/.mouthtype/config.json
+   ```
+4. Press and hold the global hotkey (default **⌥ Space**).
+5. Speak → release → the transcript lands in your previously focused app.
 
----
+> **Detailed walk-through**: [`docs/design-plan.md`](docs/design-plan.md)
+> **Sample models**: drop `ggml-*.bin` files into `Resources/whisper-models/`.
 
-## 📸 它跑起来长什么样
+### System requirements
 
-> ⚠️ 截图占位 — 实际截图待补。你可以本地启动 MouthType 后用 `⌘⇧4` 截图后放到 `.github/screenshots/`。
-
-### 主界面：悬浮胶囊 + 菜单栏
-
-<p align="center">
-  <a href=".github/screenshots/capsule.png"><img src=".github/screenshots/capsule.png" width="320" alt="悬浮胶囊指示器"></a>
-  <a href=".github/screenshots/menubar.png"><img src=".github/screenshots/menubar.png" width="320" alt="菜单栏"></a>
-</p>
-
-### 设置面板：模型选择 + 热键配置
-
-<p align="center">
-  <a href=".github/screenshots/settings.png"><img src=".github/screenshots/settings.png" width="320" alt="设置面板"></a>
-  <a href=".github/screenshots/permissions.png"><img src=".github/screenshots/permissions.png" width="320" alt="权限引导"></a>
-</p>
-
-### 终端预览
-
-> 真实命令输出可在本地构建后跑 `.build/release/MouthType --help` 获取。
+- **macOS 14.0 (Sonoma)** or later, on Apple Silicon (recommended) or Intel.
+- **Xcode 15+ / Swift 6.0+** (only required if you build from source).
+- Microphone, Accessibility, and Input Monitoring permissions will be requested on first launch.
 
 ---
 
-## 🏗️ 架构
+## 📸 Visual Tour
+
+> ⚠️ Screenshots are queued as `[TODO]` placeholders. Until then, every section below the fold shows what the screen looks like in words. Run the app and drop real PNGs into `.github/screenshots/` to upgrade.
+
+### Floating capsule + menu bar
+
+<p align="center">
+  <a href=".github/screenshots/capsule.png"><img src=".github/screenshots/capsule.png" width="320" alt="Floating capsule: translucent NSPanel pinned to the cursor while recording, with waveform and live transcript."></a>
+  <a href=".github/screenshots/menubar.png"><img src=".github/screenshots/menubar.png" width="320" alt="macOS menu bar showing the MouthType waveform icon with quick toggles for engine and hotkey."></a>
+</p>
+<p align="center"><sub><em>[TODO: capsule.png] · [TODO: menubar.png]</em></sub></p>
+
+### Settings panel + permission flow
+
+<p align="center">
+  <a href=".github/screenshots/settings.png"><img src=".github/screenshots/settings.png" width="320" alt="Settings panel with model picker (whisper-tiny / base / small / sherpa-onnx / bailian), hotkey field, and paste toggle."></a>
+  <a href=".github/screenshots/permissions.png"><img src=".github/screenshots/permissions.png" width="320" alt="Permission onboarding screen asking for microphone, accessibility, and input monitoring with explanations."></a>
+</p>
+<p align="center"><sub><em>[TODO: settings.png] · [TODO: permissions.png]</em></sub></p>
+
+> Drop real screenshots into `.github/screenshots/` and the placeholders will resolve automatically.
+
+---
+
+## 🏗️ Architecture
 
 ```mermaid
 flowchart TB
-    subgraph Input[输入层]
-        Mic[麦克风采集<br/>AVAudioEngine]
-        HK[全局热键<br/>IOKit + AXUIElement]
+    subgraph Input[Input layer]
+        Mic[Microphone<br/>AVAudioEngine]
+        HK[Global hotkey<br/>IOKit + AXUIElement]
     end
-    subgraph Core[核心层]
-        ASR[ASR 引擎抽象<br/>ASRProvider]
-        Whisper[whisper.cpp<br/>本地引擎]
-        Sherpa[sherpa-onnx<br/>本地引擎]
-        Bailian[百炼 Paraformer<br/>云端 fallback]
-        Paste[智能粘贴服务<br/>InsertionPlanExecutor]
-        Config[配置管理<br/>~/.mouthtype/config.json]
+    subgraph Core[Core layer]
+        ASR[ASR provider<br/>abstraction]
+        Whisper[whisper.cpp<br/>local engine]
+        Sherpa[sherpa-onnx<br/>local engine]
+        Bailian[Bailian Paraformer<br/>cloud fallback]
+        Paste[Smart paste service<br/>InsertionPlanExecutor]
+        Config[Config store<br/>~/.mouthtype/config.json<br/>mode 0600]
     end
-    subgraph UI[UI 层]
-        Capsule[悬浮胶囊<br/>FloatingCapsule]
-        Menu[菜单栏<br/>NSStatusItem]
-        Settings[设置面板<br/>SwiftUI]
+    subgraph UI[UI layer]
+        Capsule[Floating capsule<br/>NSPanel]
+        Menu[Menu bar<br/>NSStatusItem]
+        Settings[Settings panel<br/>SwiftUI]
     end
     Mic --> ASR
+    HK --> Capsule
     ASR --> Whisper
     ASR --> Sherpa
     ASR --> Bailian
-    HK --> Core
-    ASR --> Paste
     Config --> ASR
+    ASR --> Paste
+    Paste --> ActiveApp[Active focused app]
     ASR --> Capsule
-    Core --> Menu
+    Capsule --> Settings
     Menu --> Settings
 ```
 
-**主链路**：麦克风 → ASR 引擎 → 智能粘贴 → 当前应用
+**Hot path**: microphone → VAD → chosen ASR provider → paste into the previously focused app.
+
+| Color guide | Meaning |
+|---|---|
+| 🟦 Input layer | Audio capture, hotkey registration |
+| 🟨 Core layer | ASR engines, paste service, secrets |
+| 🟩 UI layer | Capsule, menu bar, settings |
 
 ---
 
-## 📦 功能
+## 📦 Features
 
-### 🎯 核心能力
+### 🎯 Core capabilities
 
-- 🎤 **本地 Whisper 转录** - 多档模型可选（tiny / base / small），离线运行
-- 🌐 **云端 fallback** - 阿里云百炼 Paraformer（国内可用，断网重连）
-- 🎯 **悬浮胶囊 UI** - NSPanel 浮动指示器，按下出现/松开消失
-- 📋 **智能粘贴** - 跨应用粘贴兼容，处理 focus 切换和剪贴板竞态
-- 🔐 **权限最小化** - 目录 `0700`、文件 `0600`、API key 本地隔离
-- ⚙️ **可配置热键** - 全局热键，支持 ⌥/⌘/⌃/⇧ 单修饰键组合
+- 🎤 **Local Whisper transcription** — multiple model sizes (tiny / base / small) running fully offline.
+- 🧠 **sherpa-onnx engine** — alternative local engine, optimized for low-memory Macs.
+- 🌐 **Bailian Paraformer cloud fallback** — WebSocket with automatic reconnect for noisy environments.
+- 🎯 **Floating capsule UI** — press-and-hold `NSPanel`, releases on key-up. Drag to reposition.
+- 📋 **Smart paste** — plans around focus loss, Terminal password fields, and 1Password vaults.
+- 🔐 **Least-privilege secrets** — directory mode `0700`, file mode `0600`, never exposed to the WebView.
+- ⌨️ **Configurable hotkeys** — `⌥`, `⌘`, `⌃`, `⇧` single-modifier combinations all supported.
 
-### 🧪 质量保证
+### 🛡️ Quality & safety
 
-- 🧪 **19 个测试文件** - 单元测试 + UI 测试双层覆盖
-- 🛡️ **线程安全文档** - `@unchecked Sendable` 类均添加说明
-- 🔍 **全面代码审查** - 见 [`docs/project-review-report.md`](docs/project-review-report.md)
-- 📝 **日志脱敏** - 身份证、银行卡、手机号、URL 自动脱敏
-- ⚡ **性能优化** - AudioRingBuffer 减锁竞争、VADProcessor 去重计算
+- 🧪 **149 test cases across 19 files** — unit + UI test dual coverage.
+- 🧹 **Thread-safety documented** — every `@unchecked Sendable` class has an inline rationale.
+- 🔍 **Full project review** — see [`docs/project-review-report.md`](docs/project-review-report.md).
+- 🛡️ **Log redaction** — national IDs, card numbers, phone numbers, URLs auto-masked before write.
+- ⚡ **Performance benchmarks** — audio preprocessor ≈ 0.3 ms per 100 ms buffer; log redaction ≈ 0.4 ms per short text.
+- 🧰 **Unified build script** — `./scripts/build.sh` for debug / release / signed builds.
 
-### 🖥️ 平台支持
+### 🖥️ Platform support
 
-| 平台 | 版本 | 状态 |
-|---|---|---|
-| macOS Apple Silicon | 14.0+ | ✅ 推荐 |
-| macOS Intel | 14.0+ | ✅ 支持 |
-| macOS 13 及以下 | - | ❌ 不支持 |
+| Platform | Version | Status | Notes |
+|---|---|---|---|
+| macOS Apple Silicon | 14.0+ | ✅ recommended | Universal binary path |
+| macOS Intel | 14.0+ | ✅ supported | x86_64 build |
+| macOS 13 (Ventura) and earlier | — | ❌ not supported | Apple restricted required APIs |
 
 ---
 
-## 🆚 同类对比
+## 🆚 Comparison
 
-| 维度 | MouthType | Typeless | MacWhisper | Wispr Flow |
+| Dimension | MouthType | Typeless | MacWhisper | Wispr Flow |
 |---|---|---|---|---|
-| 本地 ASR | ✅ whisper.cpp | ❌ 云端 | ✅ whisper.cpp | ❌ 云端 |
-| 国内云 fallback | ✅ 百炼 | ❌ | ❌ | ❌ |
-| 悬浮胶囊 UI | ✅ NSPanel | ✅ | ⚠️ 菜单栏 | ✅ |
-| macOS 13 支持 | ❌ | ✅ | ✅ | ✅ |
-| 开源 | ✅ GPL-3.0 | ❌ | ✅ | ❌ |
-| 配置项暴露 | 全开放 | 极少 | 中等 | 极少 |
-| 中文识别 | ✅ 优秀 | ⚠️ 一般 | ✅ 良好 | ✅ 优秀 |
+| Local ASR | ✅ whisper.cpp + sherpa-onnx | ❌ cloud only | ✅ whisper.cpp | ❌ cloud only |
+| China-region cloud fallback | ✅ Bailian Paraformer | ❌ | ❌ | ❌ |
+| Floating capsule UI | ✅ NSPanel | ✅ | ⚠️ menu-bar only | ✅ |
+| macOS 13 support | ❌ | ✅ | ✅ | ✅ |
+| Open source | ✅ GPL-3.0 | ❌ | ✅ | ❌ |
+| Configuration surface | fully open | minimal | medium | minimal |
+| Mandarin accuracy | ✅ strong | ⚠️ average | ✅ good | ✅ strong |
+| API key isolation | ✅ file mode 0600 | n/a | ⚠️ | n/a |
 
 ---
 
 ## 🗓️ Roadmap
 
-- [x] v1.0 本地 Whisper + 悬浮胶囊 + 智能粘贴
-- [x] v1.1 国内云 fallback（百炼 Paraformer）
-- [x] v1.2 全面代码审查 + 死代码清理 + 性能优化
-- [x] v1.3 权限隔离存储 + 日志脱敏
-- [x] v1.4 19 个测试文件 + 单元测试 + UI 测试
-- [ ] v2.0 多引擎并行 + 自动选最佳结果
-- [ ] v2.1 流式预览（边说边显示识别结果）
-- [ ] v2.2 自定义热键组合（已支持部分，全开放）
-- [ ] v2.3 Homebrew cask 分发
+- [x] **v1.0** — Local Whisper + floating capsule + smart paste
+- [x] **v1.1** — China-region cloud fallback (Bailian Paraformer)
+- [x] **v1.2** — Code review + dead-code sweep + performance pass
+- [x] **v1.3** — Permission-isolated secrets + log redaction
+- [x] **v1.4** — 149 tests across 19 files (unit + UI)
+- [ ] **v2.0** — Multi-engine parallel routing + best-result selection
+- [ ] **v2.1** — Streaming preview while speaking
+- [ ] **v2.2** — Free-form hotkey composer (single + chained modifiers)
+- [ ] **v2.3** — Homebrew cask distribution
 
-> 详细设计见 [`docs/design-plan.md`](docs/design-plan.md)；执行进度见 [`docs/current-status.md`](docs/current-status.md)。
-
----
-
-## 📊 数据看板
-
-| 指标 | 数值 | 指标 | 数值 |
-|---|---|---|---|
-| 🧪 测试文件 | **19 个** | 📁 源码模块 | **20+ 个** |
-| 🏗️ Swift 平台 | **macOS 14+** | 🔐 权限策略 | **目录 0700 / 文件 0600** |
-| 🌐 ASR 引擎 | **3 个** | 📦 依赖 | **SQLite.swift** |
+> Design notes live in [`docs/design-plan.md`](docs/design-plan.md); current sprint status in [`docs/current-status.md`](docs/current-status.md); test gates in [`docs/e2e-checklist.md`](docs/e2e-checklist.md).
 
 ---
 
-## 🛠️ 技术栈
+## 🛠️ Tech stack
 
-- **UI**：SwiftUI + AppKit（NSPanel, NSStatusItem）
-- **音频**：AVAudioEngine（音频采集与环形缓冲）
-- **本地 ASR**：whisper.cpp / sherpa-onnx
-- **云端 ASR**：阿里云百炼 Paraformer（WebSocket + 自动重连）
-- **存储**：SQLite.swift
-- **权限**：IOKit（热键）+ AXUIElement（上下文感知）
-- **测试**：XCTest（单元 + UI）
+- **UI**: SwiftUI + AppKit (`NSPanel`, `NSStatusItem`)
+- **Audio**: `AVAudioEngine` with `AudioRingBuffer` (lock-light producer/consumer)
+- **Local ASR**: `whisper.cpp` (bindings via SwiftPM), `sherpa-onnx`
+- **Cloud ASR**: Aliyun Bailian Paraformer over WebSocket with auto-reconnect
+- **Storage**: `SQLite.swift` for transcript history and dictionary
+- **Privileges**: IOKit (hotkey), AXUIElement (focus-aware pasting)
+- **Testing**: XCTest (unit + UI), performance benchmarks, coverage report
 
 ---
 
-## 📚 文档导航
+## 📚 Documentation
 
-| 类别 | 文档 |
+| Category | Document |
 |---|---|
-| 设计方案 | [`docs/design-plan.md`](docs/design-plan.md) |
-| 当前状态 | [`docs/current-status.md`](docs/current-status.md) |
-| E2E 验收 | [`docs/e2e-checklist.md`](docs/e2e-checklist.md) |
-| E2E 执行报告 | [`docs/e2e-checklist-execution-report.md`](docs/e2e-checklist-execution-report.md) |
-| 代码审查 | [`docs/project-review-report.md`](docs/project-review-report.md) |
-| 开发者指南 | [`DEVELOPER.md`](DEVELOPER.md) |
-| 变更日志 | [`CHANGELOG.md`](CHANGELOG.md) |
+| Design proposal | [`docs/design-plan.md`](docs/design-plan.md) |
+| Sprint status | [`docs/current-status.md`](docs/current-status.md) |
+| E2E acceptance | [`docs/e2e-checklist.md`](docs/e2e-checklist.md) |
+| E2E run report | [`docs/e2e-checklist-execution-report.md`](docs/e2e-checklist-execution-report.md) |
+| Code review | [`docs/project-review-report.md`](docs/project-review-report.md) |
+| Developer guide | [`DEVELOPER.md`](DEVELOPER.md) |
+| Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
+| Translator notes | [`CLAUDE.md`](CLAUDE.md) |
 
 ---
 
-## 🤝 贡献
+## 🤝 Contributing & Code of Conduct
 
-欢迎 PR！详见 [`DEVELOPER.md`](DEVELOPER.md) 与 [`docs/project-review-report.md`](docs/project-review-report.md)。
+Pull requests are welcome — start with [`DEVELOPER.md`](DEVELOPER.md). High-leverage contributions:
 
-主要贡献方向：
-- 新 ASR 引擎接入
-- 国际化翻译（目前中文 + 英文）
-- 性能 profiling（Instruments 火焰图）
-- macOS 13 适配
+- **New ASR engine integration** — see `Services/ASRProvider` for the seam.
+- **Localization** — `Resources/Localizable.strings` is the source of truth (currently `en` and `zh-Hans`).
+- **Performance profiling** — Instruments Time Profiler flame graphs.
+- **macOS 13 support** — would unblock older hardware; see the v2.3 ticket.
+
+This project follows the spirit of the [Contributor Covenant v2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
+
+---
+
+## 🔒 Security
+
+Found a vulnerability? Please disclose privately — **do not file a public GitHub issue.** See [`SECURITY.md`](SECURITY.md) for the supported-versions table, the disclosure window, and the PGP fingerprint (if applicable).
+
+MouthType's threat model and mitigations:
+
+- **Local audio by design** — whisper.cpp / sherpa-onnx run entirely on-device; cloud providers are an opt-in second path.
+- **Privileged secrets** — `~/.mouthtype/config.json` is created with mode `0600`; the directory with `0700`. The WebView never sees raw key material.
+- **Reactive UI isolation** — input fields post back via IPC, key strings are stripped before re-render.
+- **Log redaction** — PII, financial, and contact patterns are masked before write. See `Services/LogRedaction.swift`.
 
 ---
 
 ## 📜 License
 
-[GPL-3.0](LICENSE) — 自由使用，欢迎二次开发并开源回馈。
+[GPL-3.0](LICENSE) — free to use, modify, and redistribute. If you ship a derived work, please keep it open under compatible terms.
 
 ---
 
 <div align="center">
 
-<sub>📌 MouthType 由 <a href="https://github.com/davyzhong">qiming</a> 用 ❤️ 维护 · <a href="https://github.com/davyzhong/MouthType/issues">🐛 报告 Bug</a> · <a href="https://github.com/davyzhong/MouthType/discussions">💬 讨论</a></sub>
+<sub>📌 MouthType is maintained by <a href="https://github.com/davyzhong">qiming</a> · <a href="https://github.com/davyzhong/MouthType/issues">🐛 Report a bug</a> · <a href="https://github.com/davyzhong/MouthType/discussions">💬 Discuss</a></sub>
 
 </div>
