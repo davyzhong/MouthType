@@ -18,7 +18,7 @@ language: zh-Hans
 
 [![Platform](https://img.shields.io/badge/macOS-14.0%2B-black?logo=apple)](https://www.apple.com/macos/)
 [![Swift 语言版本](https://img.shields.io/badge/Swift-6.0-orange?logo=swift)](https://swift.org)
-[![License 许可证](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![License 许可证](https://img.shields.io/badge/license-GPL--3.0-blue)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 [![Tests 测试状态](https://img.shields.io/badge/tests-149%20cases-success)](Tests/)
 [![Status 稳定状态](https://img.shields.io/badge/status-stable-success)](#-roadmap)
 [![Security](https://img.shields.io/badge/security-policy-lightgrey)](SECURITY.md)
@@ -267,7 +267,7 @@ MouthType 的威胁模型与缓解：
 
 ## 📜 License
 
-[GPL-3.0](LICENSE) — 自由使用、修改、再分发。如发布衍生作品，请保留兼容开源条款。
+[GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.en.html) — 自由使用、修改、再分发。如发布衍生作品，请保留兼容开源条款。
 
 ---
 
