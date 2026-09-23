@@ -10,15 +10,17 @@ language: zh-Hans
 
 # 🎙️ MouthType
 
+![CI workflow 状态](https://img.shields.io/github/actions/workflow/status/davyzhong/MouthType/ci.yml) ![GitHub Stars](https://img.shields.io/github/stars/davyzhong/MouthType)
+
 **原生 macOS 听写工具 — 本地优先，阿里云百炼 fallback，语音数据不出本机。**
 
 `按住 ⌥ Space` → `说话` → `自动粘贴到任意应用`
 
 [![Platform](https://img.shields.io/badge/macOS-14.0%2B-black?logo=apple)](https://www.apple.com/macos/)
-[![Swift](https://img.shields.io/badge/Swift-6.0-orange?logo=swift)](https://swift.org)
-[![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-149%20cases-success)](Tests/)
-[![Status](https://img.shields.io/badge/status-stable-success)](#-roadmap)
+[![Swift 语言版本](https://img.shields.io/badge/Swift-6.0-orange?logo=swift)](https://swift.org)
+[![License 许可证](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![Tests 测试状态](https://img.shields.io/badge/tests-149%20cases-success)](Tests/)
+[![Status 稳定状态](https://img.shields.io/badge/status-stable-success)](#-roadmap)
 [![Security](https://img.shields.io/badge/security-policy-lightgrey)](SECURITY.md)
 
 **[中文](./README.md)** · [English](./README.en.md)
