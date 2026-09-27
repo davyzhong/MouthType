@@ -265,6 +265,13 @@ MouthType 的威胁模型与缓解：
 
 ---
 
+## 🙏 致谢
+
+- **方法论**：本 README 的结构与自检口径遵循 [readme-craft](https://github.com/davyzhong/readme-craft) ——
+  19 条铁律 + 13 条反模式，规则以 `rules.yaml` 为单一事实源，可用 `npx github:davyzhong/readme-craft check .` 复验。
+- **贡献**：欢迎通过 Issue 与 PR 参与，具体流程见下方贡献章节。
+- **赞助**：本项目暂无商业赞助。若希望支持维护，请优先贡献 Issue、PR 或文档改进。
+
 ## 📜 License
 
 [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.en.html) — 自由使用、修改、再分发。如发布衍生作品，请保留兼容开源条款。
