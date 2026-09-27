@@ -1,0 +1,96 @@
+# MouthType README 的 agent-reviewed 规则评审
+#
+# 评审对象：./README.md（285 行）
+# 评审时间：2026-09-27
+# 项目类型：desktop（原生 macOS 应用）
+# 用法：pnpm readme-craft check . --type desktop --review review.yaml
+#
+# 说明：开源项目（GPL-3.0），但尚无外部用户引用可溯源，T11 按 N/A 处理。
+
+specVersion: 3.0.0-alpha.0
+
+reviews:
+  # T01 视觉锤
+  - id: T01
+    score: 3
+    reason: >-
+      居中标题、一句话使用链（按住 ⌥ Space → 说话 → 自动粘贴）与 badge 矩阵齐备，
+      并把常用热键直接写进首屏，识别成本很低。
+      扣 2 分：首屏无实际视觉——「它跑起来长什么样」章节的 4 张界面截图全部是
+      `[TODO]` 占位（README 第 90 行明确标注），对 GUI 应用而言缺少界面截图
+      是最影响判断的缺口。
+    evidence: [logo-tagline]
+
+  # T02 三秒价值主张
+  - id: T02
+    score: 5
+    reason: >-
+      frontmatter description 与首屏副标题给出完整定位：原生 macOS 听写工具 +
+      本地优先 + 云端 fallback + 「语音数据不出本机，除非你明确要求」。
+      做什么、给谁用、独特优势（隐私优先的可选云端）三要素齐备，
+      且隐私承诺具体可验证（凭据存 ~/.mouthtype，WebView 永不直读）。
+    evidence: [value-proposition]
+
+  # T04 安装路径
+  - id: T04
+    status: na
+    reason: >-
+      原生 macOS 应用，正式支持平台仅 macOS 14.0+，无 Linux/Windows/Docker 形态。
+      启动方式为从源码构建（swift build -c release）或已发布发行包，
+      均已在快速开始章节给出。跨平台安装不适用，不因缺少其他平台扣分。
+
+  # T05 Quickstart
+  - id: T05
+    score: 5
+    reason: >-
+      快速开始明确分为「30 秒试用 — 从源码启动」（4 条命令，git clone 到运行）
+      与「60 秒 — 完成首次听写」（编号步骤 + 配置文件准备 + chmod 权限设置），
+      两段式结构完全对应 T05 的「30 秒试用 + 60 秒 Quickstart」双目标，
+      且给出可验证的中间态（菜单栏出现波形图标）。
+    evidence: [quickstart-steps]
+
+  # T07 卖点编号
+  - id: T07
+    score: 5
+    reason: >-
+      「为什么选 MouthType」6 条，每条均为「粗体关键词 + 具体机制 + 可验证细节」：
+      本地引擎点名 whisper.cpp/sherpa-onnx、fallback 说明重连行为、
+      悬浮胶囊说明 NSPanel 实现、粘贴服务列出被绕过的具体场景（Terminal、
+      1Password、密码字段）、凭据隔离给出权限位（0700/0600）、
+      日志脱敏列出脱敏对象（身份证/银行卡/手机号/URL）。无空泛形容词。
+    evidence: [numbered-selling-points, quantified-benefit]
+
+  # T08 Feature 分组
+  - id: T08
+    score: 4
+    reason: >-
+      功能、技术栈、同类对比、文档导航分章组织，另有独立的设计说明（架构）章节，
+      检索路径清晰。
+      扣 1 分：功能章节未标注各能力的成熟度或平台限制，
+      读者需自行判断哪些特性在当前版本可用。
+    evidence: [feature-groups]
+
+  # T11 引用/背书
+  - id: T11
+    status: na
+    reason: >-
+      项目处于早期阶段（README 标注 v0.x），无可溯源的外部用户引用或客户背书。
+      按 N/A 处理，不伪造用户 quote 或 logo。
+
+  # T14 包容性语言
+  - id: T14
+    score: 5
+    reason: >-
+      全文使用「你」「用户」等第二人称，无 he/she 默认指代、无性别化表述；
+      隐私相关表述使用中性技术语言（凭据硬隔离、日志脱敏），
+      不对用户群做任何预设。
+    evidence: [inclusive-language-review]
+
+  # T17 默认语言策略
+  - id: T17
+    score: 5
+    reason: >-
+      frontmatter 声明 language: zh-Hans，首屏第 28 行提供语言切换入口
+      [中文](./README.md) · [English](./README.en.md)，两个文件均真实存在。
+      默认中文与项目工作语言一致，策略完整且可立即验证。
+    evidence: [default-language-rationale]
